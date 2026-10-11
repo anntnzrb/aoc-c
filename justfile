@@ -103,7 +103,7 @@ pin := "taskset -c 0"
 pin := ""
 
 # Cost of every solution of a day on its input; all must match 00's answers
-bench day runs="100": (release day)
+bench day runs="10": (release day)
     d=$(bin/tools/day {{ year }} {{ day }}) && {{ pin }} bin/tools/bench {{ runs }} inputs/{{ year }}/day$d.txt bin/rel/{{ year }}/$d/*
 
 # Persist canonical benchmark results using the shared per-year CSV schema
