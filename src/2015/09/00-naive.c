@@ -19,12 +19,12 @@
 typedef struct {
 	char names[CITIES][64];
 	long long distance[CITIES][CITIES];
-	int used[CITIES];
 	size_t n;
 } Graph;
 
 static size_t city(Graph *g, const char *name);
-static long long route(Graph *g, size_t last, size_t left);
+static int next(size_t *order, size_t n);
+static long long route(const Graph *g, const size_t *order);
 
 static size_t
 city(Graph *g, const char *name)
@@ -40,37 +40,54 @@ city(Graph *g, const char *name)
 	return g->n++;
 }
 
-static long long
-route(Graph *g, size_t last, size_t left)
+static int
+next(size_t *order, size_t n)
 {
-	long long best = LLONG_MAX, tail, distance;
+	size_t i, j, tmp;
+
+	if (n < 2)
+		return 0;
+	for (i = n - 1; i > 0 && order[i - 1] > order[i]; i--)
+		;
+	if (i == 0)
+		return 0;
+	for (j = n - 1; order[j] < order[i - 1]; j--)
+		;
+	tmp = order[i - 1];
+	order[i - 1] = order[j];
+	order[j] = tmp;
+	for (j = n - 1; i < j; i++, j--) {
+		tmp = order[i];
+		order[i] = order[j];
+		order[j] = tmp;
+	}
+	return 1;
+}
+
+static long long
+route(const Graph *g, const size_t *order)
+{
+	long long total = 0, distance;
 	size_t i;
 
-	if (left == 0)
-		return 0;
-	for (i = 0; i < g->n; i++) {
-		distance = g->distance[last][i];
-		if (g->used[i] || distance < 0)
-			continue;
-		g->used[i] = 1;
-		tail = route(g, i, left - 1);
-		g->used[i] = 0;
-		if (tail == LLONG_MAX)
-			continue;
-		if (distance >= LLONG_MAX - tail)
+	for (i = 1; i < g->n; i++) {
+		distance = g->distance[order[i - 1]][order[i]];
+		if (distance < 0)
+			return -1;
+		if (distance >= LLONG_MAX - total)
 			die("route distance overflow");
-		best = MIN(best, distance + tail);
+		total += distance;
 	}
-	return best;
+	return total;
 }
 
 int
 main(void)
 {
 	Graph g = {0};
-	char from[64], to[64], *in, *line, *save;
-	long long distance, best = LLONG_MAX, candidate;
-	size_t len, a, b, i, j;
+	char from[64], to[64], *in, *line, *save, *endptr;
+	long long distance, best = LLONG_MAX, worst = -1, total;
+	size_t len, a, b, i, j, order[CITIES];
 	int end;
 
 	for (i = 0; i < CITIES; i++)
