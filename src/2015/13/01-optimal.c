@@ -7,9 +7,9 @@
  * bound: reading L bytes and arbitrary pair weights costs Omega(L + n^2).
  * Exact maximum Hamiltonian cycles are NP-hard; this subset DP avoids
  * factorial enumeration, but a matching exponential lower bound is unknown.
- * rejected: Linux just bench 13 50: dual-table DP 366381 work; split DP
- * with sscanf 274379 work. Direct-parser split DP wins at 90151 work,
- * versus 6705092 for 00. Temporary loser implementations were discarded.
+ * rejected: before extraction, dual-table DP used 366381 work; split DP
+ * with sscanf 274379. Shared-helper direct-parser split DP uses 93359
+ * versus 7985422 for 00 (Linux just bench 13 50). Losers were discarded.
  */
 #include <errno.h>
 #include <limits.h>
@@ -27,27 +27,11 @@ typedef struct {
 	size_t count;
 } Table;
 
-static size_t guest(Table *table, const char *name);
 static long long extend(const Table *table, const long long *row,
                         size_t previous, size_t last);
 static void solve(const Table *table, long long *part1, long long *part2);
 static char *split(char *name, int delimiter);
 static void parse(Table *table, char *line);
-
-static size_t
-guest(Table *table, const char *name)
-{
-	size_t i;
-
-	for (i = 0; i < table->count; i++)
-		if (!strcmp(table->names[i], name))
-			return i;
-	if (table->count == GUESTS)
-		die("too many guests");
-	memcpy(table->names[i], name, strlen(name) + 1);
-	table->count++;
-	return i;
-}
 
 static long long
 extend(const Table *table, const long long *row, size_t previous, size_t last)
@@ -149,8 +133,8 @@ parse(Table *table, char *line)
 	p = split(to, '.');
 	if (*p && strcmp(p, "\n") != 0)
 		die("invalid happiness statement");
-	a = guest(table, from);
-	b = guest(table, to);
+	a = nameid(table->names, &table->count, GUESTS, from);
+	b = nameid(table->names, &table->count, GUESTS, to);
 	table->happiness[a][b] = sign * amount;
 }
 

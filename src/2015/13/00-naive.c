@@ -24,48 +24,7 @@ typedef struct {
 	size_t count;
 } Table;
 
-static size_t guest(Table *table, const char *name);
-static int next(size_t *order, size_t count);
 static long long arrange(const Table *table);
-
-static size_t
-guest(Table *table, const char *name)
-{
-	size_t i;
-
-	for (i = 0; i < table->count; i++)
-		if (!strcmp(table->names[i], name))
-			return i;
-	if (table->count == GUESTS)
-		die("too many guests");
-	memcpy(table->names[i], name, strlen(name) + 1);
-	table->count++;
-	return i;
-}
-
-static int
-next(size_t *order, size_t count)
-{
-	size_t i, j, tmp;
-
-	i = count - 1;
-	while (i && order[i - 1] >= order[i])
-		i--;
-	if (!i)
-		return 0;
-	j = count - 1;
-	while (order[j] <= order[i - 1])
-		j--;
-	tmp = order[i - 1];
-	order[i - 1] = order[j];
-	order[j] = tmp;
-	for (j = count - 1; i < j; i++, j--) {
-		tmp = order[i];
-		order[i] = order[j];
-		order[j] = tmp;
-	}
-	return 1;
-}
 
 static long long
 arrange(const Table *table)
@@ -84,7 +43,7 @@ arrange(const Table *table)
 			    table->happiness[a][b] + table->happiness[b][a];
 		}
 		best = MAX(best, total);
-	} while (next(order + 1, table->count - 1));
+	} while (nextperm(order + 1, table->count - 1));
 	return best;
 }
 
@@ -111,8 +70,8 @@ main(void)
 		if (errno || end == number || *end || amount < 0 ||
 		    amount > INT_MAX)
 			die("invalid happiness amount");
-		a = guest(&table, from);
-		b = guest(&table, to);
+		a = nameid(table.names, &table.count, GUESTS, from);
+		b = nameid(table.names, &table.count, GUESTS, to);
 		table.happiness[a][b] =
 		    !strcmp(sign, "lose") ? -amount : amount;
 	}
