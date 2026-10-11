@@ -6,8 +6,8 @@
  * incomplete. Every src/YEAR/DD/NN-slug.c header comment must contain
  * "approach:" and "cost:", then "bound:" and "rejected:" for 01-optimal
  * (why nothing beats it, what lost) or "trade:" for every other solution.
- * Tags are looked up in the leading comment only, so code cannot satisfy
- * them by accident.
+ * Each tag must open a line of the leading comment (" * cost:"), so code
+ * cannot satisfy it and clang-format cannot bury it mid-sentence.
  */
 #include <glob.h>
 #include <stdio.h>
@@ -25,9 +25,9 @@ check(const char *path)
 	static const char *const tags[] = {
 	    "approach:", "cost:", "trade:", "bound:", "rejected:"};
 	FILE *fp;
-	char *s, *end;
+	char *s, *end, *needle;
 	size_t len, i;
-	int failed = 0, optimal;
+	int failed = 0, optimal, found;
 
 	if (!(fp = fopen(path, "r")))
 		die("doc: fopen %s:", path);
@@ -41,11 +41,16 @@ check(const char *path)
 	 * trade: skip index 2 for 01 and 3-4 for everything else */
 	optimal = !strncmp(strrchr(path, '/') + 1, "01-", 3);
 	for (i = 0; i < LEN(tags); i++) {
-		if ((optimal && i == 2) || (!optimal && i > 2) ||
-		    strstr(s, tags[i]))
+		if ((optimal && i == 2) || (!optimal && i > 2))
+			continue;
+		needle = smprintf("\n * %s", tags[i]);
+		found = strstr(s, needle) != NULL;
+		free(needle);
+		if (found)
 			continue;
 		failed = 1;
-		if (printf("FAIL %s: header lacks %s\n", path, tags[i]) < 0)
+		if (printf("FAIL %s: no header line starts with %s\n", path,
+		           tags[i]) < 0)
 			die("doc: printf:");
 	}
 	free(s);
