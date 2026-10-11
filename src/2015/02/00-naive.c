@@ -1,6 +1,7 @@
 /* 2015 day 02, 00 naive: https://adventofcode.com/2015/day/2
  *
- * approach: sum twice the three face areas plus the smallest for each box
+ * approach: paper is twice the face areas plus the smallest; ribbon is
+ *           the smallest face perimeter plus volume, summed for each box
  * cost: time O(n), memory O(n) input + O(1) working, one pass over n bytes
  * trade: strtoll parses each dimension; the whole input stays in memory
  */
@@ -10,50 +11,45 @@
 
 #include "aoc.h"
 
-static long long part1(const char *in, size_t len);
-static long long part2(const char *in, size_t len);
+static char *box(char *p, long long dim[3]);
 
-static long long
-part1(const char *in, size_t len)
+static char *
+box(char *p, long long dim[3])
 {
-	long long dim[3], lw, wh, hl, total = 0;
 	char *end;
 	size_t i;
 
-	(void)len;
-	while (*in) {
-		for (i = 0; i < LEN(dim); i++) {
-			errno = 0;
-			dim[i] = strtoll(in, &end, 10);
-			if (errno || end == in || dim[i] <= 0 ||
-			    *end != (i == 2 ? '\n' : 'x'))
-				die("invalid box dimensions");
-			in = end + 1;
-		}
-		lw = dim[0] * dim[1];
-		wh = dim[1] * dim[2];
-		hl = dim[2] * dim[0];
-		total += (2 * (lw + wh + hl)) + MIN(lw, MIN(wh, hl));
+	for (i = 0; i < 3; i++) {
+		errno = 0;
+		dim[i] = strtoll(p, &end, 10);
+		if (errno || end == p || dim[i] <= 0 ||
+		    *end != (i == 2 ? '\n' : 'x'))
+			die("invalid box dimensions");
+		p = end + 1;
 	}
-	return total;
-}
-
-static long long
-part2(const char *in, size_t len)
-{
-	(void)in;
-	(void)len;
-	return 0;
+	return p;
 }
 
 int
 main(void)
 {
-	char *in;
+	long long dim[3], lw, wh, hl, paper = 0, ribbon = 0;
+	char *in, *p;
 	size_t len;
 
 	in = slurp(stdin, &len);
-	if (printf("%lld\n%lld\n", part1(in, len), part2(in, len)) < 0)
+	p = in;
+	while (*p) {
+		p = box(p, dim);
+		lw = dim[0] * dim[1];
+		wh = dim[1] * dim[2];
+		hl = dim[2] * dim[0];
+		paper += (2 * (lw + wh + hl)) + MIN(lw, MIN(wh, hl));
+		ribbon += (2 * MIN(dim[0] + dim[1],
+		                   MIN(dim[1] + dim[2], dim[2] + dim[0]))) +
+		          (lw * dim[2]);
+	}
+	if (printf("%lld\n%lld\n", paper, ribbon) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
