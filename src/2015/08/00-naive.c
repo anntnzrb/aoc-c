@@ -1,8 +1,9 @@
 /* 2015 day 08, 00 naive: https://adventofcode.com/2015/day/8
  *
  * approach: scan each quoted literal, counting source and decoded lengths;
- * each allowed escape contributes one decoded character.
- * cost: time O(n), memory O(n) for the input buffer, one pass
+ * each allowed escape contributes one decoded character. Re-encode source
+ * bytes by escaping quotes and backslashes and adding outer quotes.
+ * cost: time O(n), memory O(n) for the input buffer, two passes
  * trade: count both lengths directly without materializing decoded strings
  */
 #include <ctype.h>
@@ -57,16 +58,38 @@ part1(const char *in, size_t len)
 	return code - memory;
 }
 
+static size_t
+part2(const char *in, size_t len)
+{
+	size_t i, code, encoded;
+
+	code = encoded = 0;
+	for (i = 0; i < len;) {
+		if (isspace((unsigned char)in[i])) {
+			i++;
+			continue;
+		}
+		encoded += 2;
+		while (i < len && in[i] != '\n' && in[i] != '\r') {
+			code++;
+			encoded += in[i] == '"' || in[i] == '\\' ? 2 : 1;
+			i++;
+		}
+	}
+	return encoded - code;
+}
+
 int
 main(void)
 {
 	char *in;
-	size_t len, answer;
+	size_t len, first, second;
 
 	in = slurp(stdin, &len);
-	answer = part1(in, len);
+	first = part1(in, len);
+	second = part2(in, len);
 	free(in);
-	if (printf("%zu\n", answer) < 0)
+	if (printf("%zu\n%zu\n", first, second) < 0)
 		die("printf:");
 	return EXIT_SUCCESS;
 }
