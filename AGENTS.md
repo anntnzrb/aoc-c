@@ -84,7 +84,7 @@ Binds every agent, including delegates; paste it into every delegated prompt.
 
 ## Solve Workflow
 
-Trigger: "solve N". Answers come first: a worker in its own worktree follows `docs/solve.md`, stopping after each part so the orchestrator can submit (fast lane), then writes 01 on request (slow lane) while the next day's fast lane already runs; the orchestrator verifies (gate, bench, independent cross-check), merges days in order, copies the day's fixtures to main, then removes the worktree and deletes the branch (`git branch -d`, which refuses an unmerged one). Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
+Trigger: "solve N". Answers come first: a worker in its own worktree follows `docs/solve.md`, submitting each part itself as soon as its own checks pass (fast lane), then writes 01 on request (slow lane) while the next day's fast lane already runs; the orchestrator verifies (gate, bench, independent cross-check), merges days in order, copies the day's fixtures to main, then removes the worktree and deletes the branch (`git branch -d`, which refuses an unmerged one). Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
 
 1. `just fetch N`, `just puzzle N`, `just new N`.
 2. Write the statement's examples as fixtures; a part-1 `.out` has one line.
