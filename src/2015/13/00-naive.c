@@ -122,9 +122,11 @@ main(void)
 	if (table.count) {
 		if (table.count < 3)
 			die("need at least three guests");
-		answer = arrange(&table, order, used, 1);
+		answer1 = arrange(&table);
+		table.count++;
+		answer2 = arrange(&table);
 	}
-	if (printf("%lld\n", answer) < 0)
+	if (printf("%lld\n%lld\n", answer1, answer2) < 0)
 		die("printf:");
 	return EXIT_SUCCESS;
 }
