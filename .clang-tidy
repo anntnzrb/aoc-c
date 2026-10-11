@@ -7,8 +7,8 @@
 #   insecureAPI.DeprecatedOrUnsafeBufferHandling: wants memset_s (Annex K)
 #   isolate-declaration: suckless allows "int c, n;"
 #   magic-numbers: puzzle constants; prefer #define where it adds meaning
-# include-cleaner maps only ISO C errno macros to <errno.h>; glibc defines
-# the POSIX ones (EINTR, ENOENT, ...) in kernel headers, so ignore those.
+# include-cleaner maps POSIX names (EINTR, sigset_t, ...) to glibc-private
+# headers (asm-generic/, bits/) that must never be included directly.
 Checks: >
   bugprone-*,
   cert-*,
@@ -27,4 +27,4 @@ Checks: >
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 CheckOptions:
-  misc-include-cleaner.IgnoreHeaders: 'asm-generic/errno.*\.h'
+  misc-include-cleaner.IgnoreHeaders: '(asm-generic|bits)/.*'

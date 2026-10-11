@@ -11,155 +11,43 @@
  */
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <glob.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 #include "aoc.h"
+#include "util.h"
 
 #define ENVKEY "AOC_SESSION="
 #define QUERY                                                                 \
 	"SELECT expiry, value FROM moz_cookies "                              \
 	"WHERE host LIKE '%adventofcode.com' AND name = 'session';"
 
-AOC_PRINTF(1, 2) static char *smprintf(const char *fmt, ...);
-AOC_NORETURN static void child(char *const argv[], const int ip[2],
-                               const int op[2]);
-static pid_t spawn(char *const argv[], int *in, int *out);
-static int reap(pid_t pid);
-static char *capture(char *const argv[]);
 static int feed(char *const argv[], const char *data);
 static char *dotenv(void);
 static char *firefox(void);
 static char *session(void);
-static void mkdirp(const char *path);
 
-static char *
-smprintf(const char *fmt, ...)
-{
-	va_list ap;
-	char *s;
-	int n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(NULL, 0, fmt, ap);
-	va_end(ap);
-	if (n < 0)
-		die("fetch: vsnprintf:");
-	s = ecalloc((size_t)n + 1, 1);
-	va_start(ap, fmt);
-	n = vsnprintf(s, (size_t)n + 1, fmt, ap);
-	va_end(ap);
-	if (n < 0)
-		die("fetch: vsnprintf:");
-	return s;
-}
-
-/* in the forked child: wire stdio to the pipes, then become argv */
-static void
-child(char *const argv[], const int ip[2], const int op[2])
-{
-	int null, i;
-
-	if ((null = open("/dev/null", O_RDWR)) < 0)
-		_exit(127);
-	if (dup2(ip[0] >= 0 ? ip[0] : null, STDIN_FILENO) < 0 ||
-	    dup2(op[1] >= 0 ? op[1] : STDERR_FILENO, STDOUT_FILENO) < 0 ||
-	    (op[1] >= 0 && dup2(null, STDERR_FILENO) < 0))
-		_exit(127);
-	/* a leftover write end would keep stdin from ever reaching EOF */
-	for (i = 0; i < 2; i++) {
-		if (ip[i] > STDERR_FILENO)
-			(void)close(ip[i]);
-		if (op[i] > STDERR_FILENO)
-			(void)close(op[i]);
-	}
-	if (null > STDERR_FILENO)
-		(void)close(null);
-	/* fetch ignores SIGPIPE; the child should not inherit that */
-	(void)signal(SIGPIPE, SIG_DFL);
-	execvp(argv[0], argv);
-	_exit(127);
-}
-
-/* run argv with its stdin and/or stdout on pipes; a NULL out sends stdout
- * to stderr, a NULL in reads /dev/null; stderr goes to /dev/null when
- * stdout is captured, since then only the output matters */
-static pid_t
-spawn(char *const argv[], int *in, int *out)
-{
-	int ip[2] = {-1, -1}, op[2] = {-1, -1};
-	pid_t pid;
-
-	if ((in && pipe(ip) < 0) || (out && pipe(op) < 0))
-		die("fetch: pipe:");
-	if ((pid = fork()) < 0)
-		die("fetch: fork:");
-	if (pid == 0)
-		child(argv, ip, op);
-	if (in) {
-		(void)close(ip[0]);
-		*in = ip[1];
-	}
-	if (out) {
-		(void)close(op[1]);
-		*out = op[0];
-	}
-	return pid;
-}
-
-/* wait for pid; nonzero unless it exited 0 */
-static int
-reap(pid_t pid)
-{
-	int st;
-
-	while (waitpid(pid, &st, 0) < 0)
-		if (errno != EINTR)
-			die("fetch: waitpid:");
-	return !WIFEXITED(st) || WEXITSTATUS(st) != 0;
-}
-
-/* stdout of argv; empty if it fails, like a shell's || true */
-static char *
-capture(char *const argv[])
-{
-	FILE *fp;
-	char *s;
-	size_t len;
-	int fd;
-	pid_t pid;
-
-	pid = spawn(argv, NULL, &fd);
-	if (!(fp = fdopen(fd, "r")))
-		die("fetch: fdopen:");
-	s = slurp(fp, &len);
-	if (fclose(fp) == EOF)
-		die("fetch: fclose:");
-	if (reap(pid))
-		s[0] = '\0';
-	return s;
-}
-
-/* run argv with data on its stdin; nonzero if it fails */
+/* run argv with data on its stdin and its stdout on our stderr; nonzero
+ * if it fails */
 static int
 feed(char *const argv[], const char *data)
 {
 	size_t n = strlen(data);
 	ssize_t w;
-	int fd;
+	int p[2];
 	pid_t pid;
 
-	pid = spawn(argv, &fd, NULL);
+	xpipe(p);
+	pid = spawn(argv, p[0], 2, -1);
+	if (close(p[0]) < 0)
+		die("fetch: close:");
 	while (n > 0) {
-		if ((w = write(fd, data, n)) < 0) {
+		if ((w = write(p[1], data, n)) < 0) {
 			if (errno == EINTR)
 				continue;
 			/* EPIPE: the child died early; reap() reports it */
@@ -168,7 +56,7 @@ feed(char *const argv[], const char *data)
 		data += w;
 		n -= (size_t)w;
 	}
-	if (close(fd) < 0)
+	if (close(p[1]) < 0)
 		die("fetch: close:");
 	return reap(pid);
 }
@@ -210,20 +98,19 @@ firefox(void)
 	    ".config/mozilla/firefox",                      /* Linux, XDG */
 	};
 	char prog[] = "sqlite3", query[] = QUERY;
-	char *argv[4], *home, *pat, *uri, *out, *line, *bar, *best = NULL;
+	char *argv[4], *home, *pat, *uri, *out, *bar, *best = NULL;
+	const char *line;
 	long long exp, bestexp = 0;
 	glob_t g;
-	size_t i, j, len;
+	size_t i, j, len, n;
+	int failed;
 
 	if (!(home = getenv("HOME")) || !*home)
 		return NULL;
 	for (i = 0; i < LEN(dirs); i++) {
 		pat = smprintf("%s/%s/*/cookies.sqlite", home, dirs[i]);
-		if (glob(pat, 0, NULL, &g) != 0) {
-			free(pat);
-			continue;
-		}
-		for (j = 0; j < g.gl_pathc; j++) {
+		n = xglob(pat, &g);
+		for (j = 0; j < n; j++) {
 			/* immutable=1 reads the db while Firefox holds its
 			 * lock */
 			uri = smprintf("file:%s?immutable=1", g.gl_pathv[j]);
@@ -231,7 +118,11 @@ firefox(void)
 			argv[1] = uri;
 			argv[2] = query;
 			argv[3] = NULL;
-			out = capture(argv);
+			/* a missing sqlite3 or unreadable db is just no
+			 * cookie, like a shell's || true */
+			out = capture(argv, -1, 1, &failed);
+			if (failed)
+				out[0] = '\0';
 			for (line = strtok(out, "\n"); line;
 			     line = strtok(NULL, "\n")) {
 				errno = 0;
@@ -275,13 +166,6 @@ session(void)
 	return s;
 }
 
-static void
-mkdirp(const char *path)
-{
-	if (mkdir(path, 0777) < 0 && errno != EEXIST)
-		die("fetch: mkdir %s:", path);
-}
-
 int
 main(int argc, char *argv[])
 {
@@ -313,7 +197,6 @@ main(int argc, char *argv[])
 		die("fetch: signal:");
 
 	s = session();
-	mkdirp("inputs");
 	mkdirp(dir);
 	tmp = smprintf("%s.tmp", out);
 	url = smprintf("https://adventofcode.com/%d/day/%d/input", year, day);

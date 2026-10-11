@@ -1,4 +1,9 @@
-/* YEAR day DAY: https://adventofcode.com/YEAR/day/DAYN */
+/* YEAR day DAY, 00 naive: https://adventofcode.com/YEAR/day/DAYN
+ *
+ * approach: TODO the idea, starting from what the puzzle asks
+ * cost: time O(?), memory O(?), passes ?
+ * trade: the first thing that works; no optimization
+ */
 #include <stdio.h>
 #include <stdlib.h>
 

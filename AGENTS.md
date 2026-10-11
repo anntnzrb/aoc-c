@@ -1,173 +1,95 @@
 # Repository Guidelines
 
-## Project Overview
+This whole file is living documentation. When a solve, a bug or a better idea shows a rule is wrong or missing, update it in the same session.
 
-Advent of Code solutions for **every year** (2015 onward) in pure C99 + POSIX.1-2008, written in [suckless style](https://suckless.org/coding_style/). The repo layout is one repo per language, so other languages get their own repos. The toolchain comes from a Nix flake devshell, and every task runs through `just`. The goal is maximally strict, warning-free C. Never relax the flags to get a build through.
+## Project
 
-**Everything that can be C is C.** The helper tools (`tools/*.c`) are held to the same flags, lint and sanitizers as the solutions. Only files that cannot be C are exempt: Markdown, Nix (`flake.nix`, `flake.lock`), the `justfile` and the dotfiles. Do not add shell scripts. Logic that outgrows a justfile one-liner belongs in a C tool.
+Advent of Code, every year from 2015, in C99 + POSIX.1-2008, [suckless style](https://suckless.org/coding_style/). One repo per language. The repo is learning material: it records how an agent reasons from a puzzle to a naive answer, then to an optimal one. The toolchain comes from a Nix flake devshell (`nix develop`), and every task runs through `just`.
 
-## Architecture & Data Flow
+**Principles**
+- Everything that can be C is C. Only Markdown, Nix, the `justfile` and dotfiles are exempt. No shell scripts; a recipe that needs logic gets a C tool in `tools/`.
+- Fewer lines win. DRY, high cohesion, low coupling: shared code goes behind a header (`include/aoc.h` for everything, `tools/util.h` for the tools), and a module's documentation lives in its own header comment.
+- Maximal strictness: never relax a flag or silence a check to get green. A `-Wno-*` or suppression needs a written reason next to it, and only for a false positive the code cannot avoid.
+- Linux (x86_64) is the primary target and macOS (Apple silicon) must also pass. A change counts as verified only on the platform it ran on.
 
-Each day compiles to a standalone binary that acts as a Unix filter:
+## Layout
 
 ```
-bin/tools/fetch → inputs/YEAR/dayNN.txt → stdin → slurp() → part1(in, len), part2(in, len) → stdout (one answer per line)
+src/YYYY/DD/NN-slug.c   solutions: 00-naive, 01-optimal, 02+ explorations
+tests/YYYY/DD/*.in|out  puzzle-example fixtures (gitignored)
+inputs/YYYY/dayDD.txt   personal inputs (gitignored, never commit)
+include/aoc.h lib/aoc.c die, ecalloc, ereallocarray, slurp, puzzleday; linked into every binary
+tools/*.c, tools/util.* day, new, fetch, build, test, bench, doc; see each file's header
+templates/day.c         skeleton for `just new` (YEAR, DAY, DAYN placeholders)
+bin/YYYY/DD/            sanitized debug builds; bin/rel/YYYY/DD/ release; bin/tools/
 ```
 
-- Solutions never open files or parse argv. Input always arrives on stdin.
-- `lib/aoc.c` is compiled straight into each binary (`cc … src/YEAR/dayNN.c lib/aoc.c -Iinclude`). No static or shared library is built. `lib/` and `include/` are shared by all years.
-- Failures are fail-fast: `die()` exits with status 1. Allocators never return NULL.
-- `src/` does not exist until the first `just new <day>`.
-- **Year selection:** the justfile variable `year` defaults to `AOC_YEAR` (read from the environment or `.env` via `set dotenv-load`), then to `2015`. Override it per call with `just year=2025 run 01`. `test` and `check` ignore it and cover every year.
-- **Day ranges:** `puzzleday()` in `lib/aoc.c` validates them. Both tools call it, every recipe goes through `bin/tools/day`, and all of them accept `4` or `04`. Years 2015–2024 have days 1–25, and 2025 onward has days 1–12.
-- **Tools:** the private `tools` recipe builds `bin/tools/day` and `bin/tools/fetch` with the sanitized debug flags. It only rebuilds when `tools/*.c`, `lib/aoc.c` or `include/aoc.h` is newer than the binary. `new`, `fetch`, `build`, `release` and `check` depend on it.
+Every solution is a Unix filter: input on stdin, part 1 then part 2 on stdout, one answer per line, exit 0. Days and years are validated by `puzzleday()`: 2015-2024 have days 1-25, 2025 on have 1-12; `4` and `04` both work.
 
-## Key Directories
-
-| Path | Purpose |
-|---|---|
-| `include/aoc.h` | Shared API: `die`, `ecalloc`, `ereallocarray`, `slurp`, `puzzleday`, plus `LEN`/`MIN`/`MAX` |
-| `lib/aoc.c` | Implementation of the shared API |
-| `src/YEAR/dayNN.c` | One solution per day, two-digit zero-padded (`src/2015/day01.c`) |
-| `templates/day.c` | Skeleton for `just new`. Its `YEAR`/`DAY`/`DAYN` placeholders are replaced by `sed` |
-| `tests/lib.c` | Unit tests for `lib/` |
-| `tests/YEAR/dayNN/*.in`, `*.out` | Puzzle example fixtures |
-| `tools/fetch.c` | Input downloader: `bin/tools/fetch YEAR DAY` |
-| `tools/day.c` | Year/day validator for recipes: `bin/tools/day YEAR DAY` prints the plain day number |
-| `inputs/YEAR/` | Personal puzzle inputs. **Gitignored, not redistributable** |
-| `bin/YEAR/`, `bin/tools/` | Build output. Gitignored |
-
-## Development Commands
-
-Run everything inside the devshell (`nix develop`, or prefix commands with `nix develop -c`).
+## Commands
 
 ```sh
-just new 4                  # src/2015/day04.c + tests/2015/day04/; refuses to overwrite
-just year=2025 new 4        # same, for 2025 (or set AOC_YEAR in .env)
-just fetch 4                # inputs/2015/day04.txt (cached; never re-downloads)
-just run 4                  # sanitized debug build, then ./bin/2015/day04 < inputs/2015/day04.txt
-just run 4 tests/2015/day04/a.in   # run against a specific input
-just test                   # lib unit tests + every tests/*/dayNN fixture, all years
-just fmt                    # clang-format in place
-just lint                   # clang-format check → clang-tidy → clang --analyze
-just check                  # lint + test + debug and release builds of every day, all years (full gate)
-just release 4              # bin/2015/day04.rel: -O2, FORTIFY_SOURCE=3, stack protector
-just clean
+just new 4            # src/YEAR/04/00-naive.c + tests/YEAR/04/
+just fetch 4          # inputs/YEAR/day04.txt (cached)
+just run 4 [NN] [in]  # debug build, run solution NN (default 00)
+just test             # lib unit tests + every solution x every fixture, all years
+just bench 4 [runs]   # release builds: answers must equal 00's, then wall/cpu/rss/instructions
+just fmt              # clang-format, nixfmt, just --fmt
+just lint             # format drift, clang-tidy, clang analyzer, cppcheck
+just gcc              # GCC -fanalyzer + extra warnings (Linux; no-op on macOS)
+just check            # lint + gcc + test + release builds: the gate
 ```
 
-Recipe arguments are day numbers. Every recipe normalizes `4`/`04` through `bin/tools/day`, which rejects days outside the year's range.
+`year` defaults to `AOC_YEAR` (environment or `.env`), then 2015: `just year=2025 run 1`.
 
-## Code Conventions & Common Patterns
+## Toolchain
 
-**Language**
-- C99 with no extensions: `-std=c99 -pedantic-errors -D_POSIX_C_SOURCE=200809L`.
-- Warnings: `-Weverything -Werror`. Only four are disabled everywhere (`warn` in the `justfile`): `padded`, `unsafe-buffer-usage`, `pre-c11-compat` and `implicit-void-ptr-cast`. Release builds on Linux also disable `used-but-marked-unused`, because glibc's fortified stdio wrappers trigger it on every `printf` call. Fix the code instead of adding more `-Wno-*` flags.
-- String literals are `const char[]` under `-Wwrite-strings`, and `-Wcast-qual` forbids casting the `const` away. An `argv` for `execvp` is therefore built from local `char x[] = "..."` arrays (see `tools/fetch.c`).
-- Some glibc struct members are recursive macros (`sa_handler`), which `-Wdisabled-macro-expansion` rejects. Prefer the plain API (`signal`) over that struct.
+- `justfile` is the single source of flags. clang 21 is primary (`-Weverything -Werror`, four documented `-Wno-*`). GCC 16 is a second gate on Linux. The devshell's `cc` is GCC on Linux, so recipes use `$CC` (`clang`), never `cc`.
+- Debug builds run ASan (Linux only: it hangs on macOS 27), UBSan and integer sanitizers with `-fno-sanitize-recover=all`; LeakSanitizer means tools free what they allocate. MemorySanitizer crashes with nixpkgs glibc and is not used.
+- `flake.nix` disables the cc wrapper's fortify hardening, which would otherwise inject `_FORTIFY_SOURCE` into debug builds.
+- Platform differences use just's `[linux]`/`[macos]` attributes, never `os()` branches.
+- Known glibc false positives, each handled once with a reason: fortified stdio vs `-Wused-but-marked-unused` (release, Linux), include-cleaner wanting `bits/` and `asm-generic/` headers (`.clang-tidy`), `-fanalyzer` flagging `fork` + `dup2` (the tools use `posix_spawnp`).
+- `.env` holds the secret session cookie: never read, print or commit it.
 
-**suckless rules, enforced by the compiler, clang-format and clang-tidy**
-- Declare every variable at the top of its block, before any statement (`-Wdeclaration-after-statement`). No `for (int i = …)`.
-- Use `/* */` comments only.
-- Indent with tabs (width 8). Lines are at most 79 columns.
-- Put the return type on its own line and the opening `{` on its own line for functions:
-  ```c
-  static long long
-  part1(const char *in, size_t len)
-  {
-  ```
-- Mark every file-local function `static`, and declare its prototype at the top of the file in definition order (see `templates/day.c`). This applies to `lib/` and `tools/` too.
-- `case` is not indented under `switch`. Comment intentional fallthrough with `/* FALLTHROUGH */`.
-- Attach `*` to the name: `char *p`. Use `int`, not `bool`. Use `CamelCase` for typedefs and never the `_t` suffix.
-- Assigning inside a condition is idiomatic: `if (!(fp = fopen(p, "r"))) die("fopen %s:", p);`.
-- Never cast `malloc`/`calloc` results.
+## Code
 
-**Error handling**
-- `die(fmt, ...)`: if `fmt` ends in `':'`, it appends `strerror(errno)`, e.g. `die("fopen %s:", path)`.
-- `ecalloc`/`ereallocarray` die on failure or overflow, so never NULL-check what they return.
-- clang-tidy's `cert-err33-c` flags any ignored stdio return value. Check it, or cast it to `(void)` with a comment explaining why (see `die()` in `lib/aoc.c`).
-- Use `fseek(fp, 0, SEEK_SET)`, not `rewind()` (flagged by `bugprone-unsafe-functions`).
+suckless, enforced by the compilers, clang-format, clang-tidy and cppcheck: tabs, 79 columns, `/* */` comments, return type on its own line, variables at the top of the block, file-local functions `static` with prototypes at the top in definition order, `case` not indented, `char *p`, `int` not `bool`, `CamelCase` typedefs, assignment in conditions is fine, never cast `malloc`. `die(fmt)` appends `strerror` when `fmt` ends in `:`, and the `e*` allocators never return NULL. Check every stdio return or cast it to `(void)` with a reason.
 
-**Solution shape** (from `templates/day.c`)
-- `static long long part1(const char *in, size_t len)` and `part2` work on the NUL-terminated buffer from `slurp(stdin, &len)`. `len` excludes the NUL.
-- `main` prints `"%lld\n%lld\n"`, frees the input buffer and returns `EXIT_SUCCESS`.
-- `templates/day.c` is linted too, so it must stay warning-free.
+Under `-Wwrite-strings` + `-Wcast-qual`, an `argv` for spawning is built from local `char x[] = "..."` arrays. Prefer plain APIs over glibc structs whose members are macros (`signal`, not `sigaction`).
 
-## Important Files
+## Solutions
 
-- `justfile` is the single source of truth for compiler flags, sanitizers and recipes.
-- `flake.nix` defines the devshell using `clangStdenv`, so Linux uses clang too. It ships `clang-tools`, `just`, and `curl` and `sqlite` (which `fetch` runs at runtime). It sets `hardeningDisable = [ "fortify" "fortify3" ]` so the cc wrapper cannot inject `_FORTIFY_SOURCE` into debug builds, which keeps the `justfile` the only source of flags. `flake.lock` pins nixpkgs.
-- `.clang-format` encodes the suckless style. Run `just fmt` instead of hand-formatting.
-- `.clang-tidy` enables `bugprone-*`, `cert-*`, `clang-analyzer-*`, `misc-*`, `performance-*`, `portability-*` and `readability-*` as errors. The disabled checks are listed with reasons in the file header. `misc-include-cleaner` ignores glibc's `asm-generic/errno*.h`, because otherwise it rejects POSIX errno macros such as `EINTR` even though `<errno.h>` is included.
-- `.env.example` documents the optional keys `AOC_SESSION` and `AOC_YEAR`. `AOC_YEAR` is the default year for `just` recipes and falls back to `2015`.
-- **`.env` holds a secret session cookie.** Never read, print or commit it.
+- **00-naive** is written first: the most direct thing that works, competition style. It is the oracle: `test` and `bench` hold every other solution to its answers. The template is its skeleton.
+- **01-optimal** is the gold standard: as close to the lower bound as known, ranked by asymptotic cost and passes, then `perf` user-space instructions ("work", startup subtracted), then peak RSS, CPU and wall time. If an exploration beats it, swap them.
+- **02+** explorations: two passes, recursion, memoization, tables, branch-free, anything that shows a distinct idea.
+- Every file opens with a header: `approach:` (the idea, from what the puzzle asks), `cost:` (time, memory, passes), then `bound:` and `rejected:` for 01 (why nothing beats it; what lost, with `just bench` numbers) or `trade:` for the rest. `just lint` enforces the tags (`tools/doc.c`). Comment only decision points inside the code.
 
-## Runtime/Tooling Preferences
-
-- Compiler: clang 21 from nixpkgs. Do not switch to gcc, and do not use Apple's `/usr/bin/clang`.
-- **Developed on macOS and Linux; both must pass `just check`.** Platform quirks surface only on the platform that has them, so a change counts as verified only on the platform where it was run.
-- **Sanitizers differ by OS.** On macOS 27, ASan hangs at startup with both nixpkgs and Apple clang, so macOS debug builds use `-fsanitize=undefined,integer` and Linux adds `address` (with LeakSanitizer, so tools must free what they allocate). All builds use `-fno-sanitize-recover=all`, so any UB aborts the program.
-- `just lint` passes `-Wno-unused-command-line-argument` to `clang --analyze` because the nix cc wrapper injects `-L` flags. Keep that flag.
-- `tools/fetch.c` is plain POSIX C. It runs `curl` (TLS) and `sqlite3` (the cookie DB) with `fork`/`execvp` over pipes and links no extra libraries:
-  - A cached input (non-empty `inputs/YEAR/dayNN.txt`) exits 0 before any session lookup.
-  - Session lookup order: `$AOC_SESSION` from the environment, then the first non-empty `AOC_SESSION=` line in `.env`, then the newest-expiring adventofcode.com cookie across Firefox profiles (macOS `~/Library/Application Support/Firefox/Profiles`, Linux `~/.mozilla/firefox` and `~/.config/mozilla/firefox`), read with `immutable=1`.
-  - `.env` is parsed, never executed. A trailing `\r` is stripped.
-  - The session must be hex. Anything else (CR/LF, `;`) is rejected so it cannot inject headers.
-  - The cookie goes to curl over stdin (`-H @-`) so it stays out of `ps`. `SIGPIPE` is ignored so a dead curl reports a failure instead of killing `fetch`, and children get `SIG_DFL` back before `exec`.
-  - Writes are atomic: curl writes `dayNN.txt.tmp`, `rename()` moves it into place, and the tmp file is unlinked on failure.
-
-## Testing & QA
-
-- No test framework: `tests/lib.c` uses `<assert.h>` and builds into `bin/test-lib` with the sanitized debug flags. Never compile it with `-DNDEBUG`. It covers `slurp` and `puzzleday`.
-- Day fixtures: `tests/YEAR/dayNN/<name>.in` is fed to `bin/YEAR/dayNN`, and stdout is compared with `<name>.out`. They are copied from the puzzle text, so they are gitignored (`/tests/2*/`), like inputs; the AoC FAQ asks public repos not to include puzzle text or inputs. A day that fails to build reports `FAIL <dir>: build`.
-  - Only the first `wc -l < .out` lines are compared, so a one-line `.out` tests part 1 alone while part 2 is unfinished.
-  - **Every `.out` must end with a newline**, otherwise `wc -l` returns 0 and the comparison is empty.
-  - A mismatch prints `FAIL <file>: want '…' got '…'`, the run continues, and the final exit status is non-zero.
-- Workflow per day: `just new N`, add the puzzle examples as fixtures, `just test` until green, then `just run N`, then `just check` before committing.
-- `just check` must pass before work counts as done. It builds the tools even when `src/` is empty, but it never executes them, so changes to `tools/` also need a manual run of `bin/tools/day` and of `bin/tools/fetch` against a real or stubbed `curl`. There is no CI yet.
-
-## Commit Guidelines
+## Commits
 
 `git log` should show what was solved and how.
-
-- Subject: `<scope>: <imperative summary>`, lowercase, no period, ≤72 chars.
-- Scopes: `YYYY/DD` (`src/YYYY/dayDD.c`), `lib` (header, `lib/aoc.c`, `tests/lib.c`), `tools/<name>`, `template`, `build` (`justfile`, flake, `.clang-*`), `docs`, `repo` (`.gitignore`, `.env.example`).
-- One commit per puzzle part: `2015/01: solve part 1 by summing paren steps`, then `2015/01: solve part 2 …`. Commit part 1 before writing part 2: once both parts sit in one new file, the diff is a single hunk that will not split reliably.
-- Never mix two days, or a day with shared code. Shared code a day needs is committed first, in its own scoped commit with its tests.
-- Body: approach and complexity. Never include answers, input or puzzle text.
+- Subject: `<scope>: <imperative summary>`, lowercase, no period, ≤72 chars. Scopes: `YYYY/DD`, `lib`, `tools/<name>`, `template`, `build` (justfile, flake, `.clang-*`), `docs`, `repo` (`.gitignore`, `.env.example`).
+- One commit per step: 00 part 1, 00 part 2, 01, each exploration. Commit part 1 before writing part 2; a new file's two parts are one hunk and will not split later.
+- Shared code a day needs is committed first, in its own scope, with its tests. Never mix two days.
+- Body: approach and cost. Never answers, input or puzzle text.
 
 ## No Outside Solutions
 
-The point of this repo is to watch agents solve AoC on their own. This rule binds every agent, including any agent work is delegated to. Paste it into every delegated prompt.
-
-- Derive every solution from the puzzle statement. Never search for, fetch, or read AoC solutions, write-ups, megathreads, repos or videos, for any year or day.
-- Allowed: adventofcode.com itself (statements, inputs, submitting), C/POSIX/compiler/tool documentation, and general algorithm references in software-engineering terms (Dijkstra, union-find, CRT) as long as they are not tied to a specific puzzle.
-- If a remembered answer or solution comes to mind, do not use it. Reason from the statement and show that reasoning in the report.
-- When the agent's tooling allows it, turn off web search and network access for the implementer, using per-run options only. Never change the user's persistent configuration.
+Binds every agent, including delegates; paste it into every delegated prompt.
+- Derive every solution from the puzzle statement. Never search for, fetch or read AoC solutions, write-ups, megathreads, repos or videos.
+- Allowed: adventofcode.com itself, C/POSIX/tool documentation, general algorithms (Dijkstra, union-find, CRT) not tied to a puzzle.
+- A remembered answer or solution is not used; reason from the statement and show the reasoning.
+- Disable the implementer's web search and network access with per-run options when its tooling allows; never change the user's persistent configuration.
 
 ## Solve Workflow
 
-A living procedure. When a run hits a new problem, fix the step and add a line to the lessons log below.
+Trigger: "solve N". Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
 
-Trigger: "solve N". The year comes from `AOC_YEAR`, or from `year=YYYY` when it is given.
+1. `just fetch N`, get the statement, `just new N`.
+2. Write the statement's examples as fixtures; a part-1 `.out` has one line.
+3. Implement 00 part 1, `just run N`, cross-check with a quick independent script when cheap, submit. After a wrong answer stop and diagnose; lockouts escalate. `just check`, commit.
+4. Part 2 likewise (it unlocks only after part 1), commit.
+5. Write 01: argue the bound, `just bench N`, commit. Add explorations when they teach something.
+6. Report: answers, ✓/✗, approach, cost vs bound, bench numbers. Implementer failing `just test` twice: the orchestrator takes over.
 
-Roles:
-- **Orchestrator** runs the pipeline, checks every result and reports.
-- **Implementer** writes the solution. It gets the puzzle statement, the No Outside Solutions rule, the target file, and the goal of a green `just test` and `just lint`.
-- **Helpers** handle trivial mechanical work, such as extracting example fixtures from the statement.
-
-Steps:
-1. **Fetch:** `just fetch N`. Get the statement from adventofcode.com (`just puzzle N` is planned and will write the gitignored `puzzles/`).
-2. **Scaffold:** `just new N`.
-3. **Fixtures first:** write the statement's examples to `tests/YEAR/dayNN/pK-M.in` and `.out`. Part 1 fixtures get a one-line `.out`.
-4. **Solve:** the implementer writes `part1`. If it fails `just test` twice, the orchestrator solves the part itself.
-5. **Answer:** `just run N`. Cross-check against an independent quick script whenever one is cheap to write.
-6. **Submit part 1** (`just submit N 1 X` is planned). After a wrong answer, stop and diagnose; never resubmit guesses, because lockouts escalate. Once it is accepted, run `just check` and commit part 1 (see Commit Guidelines) before touching `part2`.
-7. **Part 2:** fetch the statement again (part 2 unlocks only after part 1 is accepted), then repeat steps 3–6 with level 2.
-8. **Gate:** `just check` must exit 0, then commit part 2.
-9. **Report:** both answers, a ✓/✗ checklist, and a short note on the approach and its complexity.
-
-Lessons log:
-- 2015/01: committing both parts at once produced one commit, because the new file was a single hunk. Commit after each part.
-- 2015/01: clang-tidy rejects nested ternaries (`readability-avoid-nested-conditional-operator`). Use a `switch`.
-- tools: `readability-function-cognitive-complexity` is enforced. Split long functions early (see `child()` in `tools/fetch.c`).
-- Linux: glibc false positives exist (fortified stdio, POSIX errno macros). See Important Files and Language before adding any `-Wno-*`.
+Lessons:
+- A per-element branch can block vectorization: 2015/01's fused loop with a basement check ran more instructions than two passes. Measure before believing "one pass".

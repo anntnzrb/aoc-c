@@ -1,4 +1,4 @@
-/* day: validate a puzzle year and day, print the day as a plain decimal
+/* day: validate a puzzle year and day, print the day as two digits (04)
  *
  * usage: day year day
  */
@@ -17,7 +17,7 @@ main(int argc, char *argv[])
 		die("usage: day year day");
 	if ((err = puzzleday(argv[1], argv[2], &year, &day)))
 		die("day: %s %s: %s", argv[1], argv[2], err);
-	if (printf("%d\n", day) < 0)
+	if (printf("%02d\n", day) < 0)
 		die("day: printf:");
 	return EXIT_SUCCESS;
 }

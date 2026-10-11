@@ -18,12 +18,23 @@
       devShells = forAllSystems (pkgs: {
         # clangStdenv: the same compiler (and warning set) on Linux and macOS
         default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
-          packages = with pkgs; [
-            clang-tools # clangd, clang-format, clang-tidy
-            curl # tools/fetch.c
-            just
-            sqlite # tools/fetch.c: Firefox cookie lookup
-          ];
+          packages =
+            with pkgs;
+            [
+              clang-tools # clangd, clang-format, clang-tidy
+              cppcheck # third static analyzer in `just lint`
+              nixfmt # formats flake.nix in `just fmt`
+              curl # tools/fetch.c
+              just
+              sqlite # tools/fetch.c: Firefox cookie lookup
+            ]
+            # Linux only: gcc is the second strict compiler for `just gcc`
+            # (on Darwin it would just be another clang); perf counts
+            # instructions for `just bench` (Darwin has no perf)
+            ++ lib.optionals stdenv.hostPlatform.isLinux [
+              gcc
+              perf
+            ];
           # the justfile owns the flags: the cc wrapper's fortify would
           # inject _FORTIFY_SOURCE into -O0 and sanitized debug builds
           hardeningDisable = [
@@ -33,6 +44,6 @@
         };
       });
 
-      formatter = forAllSystems (pkgs: pkgs.nixfmt-rfc-style);
+      formatter = forAllSystems (pkgs: pkgs.nixfmt);
     };
 }
