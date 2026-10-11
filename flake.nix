@@ -34,6 +34,7 @@
             ++ lib.optionals stdenv.hostPlatform.isLinux [
               gcc
               perf
+              util-linux # taskset pins `just bench` to one CPU
             ];
           # the justfile owns the flags: the cc wrapper's fortify would
           # inject _FORTIFY_SOURCE into -O0 and sanitized debug builds

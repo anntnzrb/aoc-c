@@ -93,9 +93,16 @@ release day: tools
 run day solution="00" input="": (build day)
     d=$(bin/tools/day {{ year }} {{ day }}) && in="{{ input }}" && bin/{{ year }}/$d/{{ solution }}-* <"${in:-inputs/{{ year }}/day$d.txt}"
 
+# Pin benchmarks to one CPU: on hybrid CPUs a process migrating between core
+# types mixes their counters and makes the instruction ranges meaningless
+[linux]
+pin := "taskset -c 0"
+[macos]
+pin := ""
+
 # Cost of every solution of a day on its input; all must match 00's answers
 bench day runs="100": (release day)
-    d=$(bin/tools/day {{ year }} {{ day }}) && bin/tools/bench {{ runs }} inputs/{{ year }}/day$d.txt bin/rel/{{ year }}/$d/*
+    d=$(bin/tools/day {{ year }} {{ day }}) && {{ pin }} bin/tools/bench {{ runs }} inputs/{{ year }}/day$d.txt bin/rel/{{ year }}/$d/*
 
 # Library unit tests, then every solution against every fixture, all years
 test: tools
