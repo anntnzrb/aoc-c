@@ -106,6 +106,10 @@ pin := ""
 bench day runs="100": (release day)
     d=$(bin/tools/day {{ year }} {{ day }}) && {{ pin }} bin/tools/bench {{ runs }} inputs/{{ year }}/day$d.txt bin/rel/{{ year }}/$d/*
 
+# Persist canonical benchmark results using the shared per-year CSV schema
+record day runs="10": (release day)
+    d=$(bin/tools/day {{ year }} {{ day }}) && {{ pin }} bin/tools/bench -o bench/{{ year }}.csv -s {{ replace_regex(std, '^-std=([^ ]+).*', '$1') }} -c {{ cc }} {{ runs }} inputs/{{ year }}/day$d.txt bin/rel/{{ year }}/$d/*
+
 # Library unit tests, then every solution against every fixture, all years
 test: tools
     bin/tools/build bin all all {{ cc }} {{ cflags }} {{ debug }} {{ lib }} >/dev/null
