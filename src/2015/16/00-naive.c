@@ -1,56 +1,92 @@
 /* 2015 day 16, 00 naive: https://adventofcode.com/2015/day/16
  *
- * approach: reject each Sue whose remembered facts differ from the sample;
+ * approach: filter remembered facts by equality for part 1, then by the
+ *           four strict ranges and remaining equalities for part 2;
  *           absent facts are unknown, so they impose no constraint.
  * cost: time O(n) input bytes, memory O(longest line), one pass
  * trade: linear lookup in the fixed ten-property sample keeps parsing simple.
  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-int
-main(void)
+static long number(const char *text, char **end);
+static void match(char *fact, int matches[2]);
+
+static long
+number(const char *text, char **end)
+{
+	long value;
+
+	errno = 0;
+	value = strtol(text, end, 10);
+	if (errno || *end == text || value < 0)
+		die("invalid number");
+	return value;
+}
+
+static void
+match(char *fact, int matches[2])
 {
 	static const char *const names[] = {
 	    "children", "cats",     "samoyeds", "pomeranians", "akitas",
 	    "vizslas",  "goldfish", "trees",    "cars",        "perfumes"};
-	static const int sample[] = {3, 7, 2, 3, 0, 0, 5, 3, 2, 1};
-	char *line = NULL, *fact, name[32];
+	static const long sample[] = {3, 7, 2, 3, 0, 0, 5, 3, 2, 1};
+	char *colon, *end;
+	size_t i;
+	long value;
+
+	fact += strspn(fact, " ");
+	if (!(colon = strchr(fact, ':')))
+		die("invalid fact");
+	*colon = 0;
+	value = number(colon + 1, &end);
+	if (*end)
+		die("trailing fact data");
+	for (i = 0; i < sizeof(sample) / sizeof(sample[0]); i++) {
+		if (strcmp(fact, names[i]) != 0)
+			continue;
+		matches[0] &= value == sample[i];
+		if (i == 1 || i == 7)
+			matches[1] &= value > sample[i];
+		else if (i == 3 || i == 6)
+			matches[1] &= value < sample[i];
+		else
+			matches[1] &= value == sample[i];
+		return;
+	}
+	die("unknown property: %s", fact);
+}
+
+int
+main(void)
+{
+	char *line = NULL, *fact, *end;
 	size_t cap = 0, i;
-	int id, offset, value, matches, answer = 0;
+	long id, answer[2] = {0, 0};
+	int matches[2];
 
 	while (getline(&line, &cap, stdin) != -1) {
-		offset = 0;
-		if (sscanf(line, "Sue %d: %n", &id, &offset) != 1 || !offset)
+		if (strncmp(line, "Sue ", 4) != 0)
 			die("invalid Sue");
-		matches = 1;
-		for (fact = strtok(line + offset, ",\n"); fact;
-		     fact = strtok(NULL, ",\n")) {
-			fact += strspn(fact, " ");
-			if (sscanf(fact, "%31[^:]: %d", name, &value) != 2)
-				die("invalid fact");
-			for (i = 0; i < sizeof(sample) / sizeof(sample[0]);
-			     i++)
-				if (strcmp(name, names[i]) == 0)
-					break;
-			if (i == sizeof(sample) / sizeof(sample[0]))
-				die("unknown property: %s", name);
-			if (value != sample[i])
-				matches = 0;
-		}
-		if (matches) {
-			if (answer)
-				die("multiple matching Sues");
-			answer = id;
-		}
+		id = number(line + 4, &end);
+		if (*end != ':' || !id)
+			die("invalid Sue id");
+		matches[0] = matches[1] = 1;
+		for (fact = strtok(end + 1, ",\n"); fact;
+		     fact = strtok(NULL, ",\n"))
+			match(fact, matches);
+		for (i = 0; i < 2; i++)
+			if (matches[i] && !answer[i])
+				answer[i] = id;
 	}
 	if (ferror(stdin))
 		die("read:");
 	free(line);
-	if (printf("%d\n", answer) < 0)
+	if (printf("%ld\n%ld\n", answer[0], answer[1]) < 0)
 		die("write:");
 	return EXIT_SUCCESS;
 }
