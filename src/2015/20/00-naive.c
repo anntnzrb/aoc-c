@@ -33,16 +33,20 @@ part1(size_t target)
 int
 main(void)
 {
-	char *in;
-	size_t len, target, answer = 0;
+	char *in, *end;
+	size_t len, target, part1 = 0, part2 = 0;
 
 	in = slurp(stdin, &len);
 	if (len) {
-		if (sscanf(in, "%zu", &target) != 1 || !target)
+		errno = 0;
+		target = strtoul(in, &end, 10);
+		if (errno || end == in || !target || *in == '-' ||
+		    (*end && *end != '\n'))
 			die("invalid present target");
-		answer = part1(target);
+		part1 = solve(target, 0);
+		part2 = solve(target, 1);
 	}
-	if (printf("%zu\n0\n", answer) < 0)
+	if (printf("%zu\n%zu\n", part1, part2) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
