@@ -48,7 +48,9 @@ analyzer := "-Xanalyzer -analyzer-werror -Xanalyzer -analyzer-checker=security,u
 # cppcheck, every check including inconclusive ones. Suppressed:
 #   variableScope: suckless declares variables at the top of the function
 #   staticFunction in lib/aoc.c: public API that days call (or will)
-cppcheck := "--std=c99 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=variableScope --suppress=staticFunction:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
+#   unmatchedSuppression in lib/aoc.c: the line above stops matching once
+#   every lib function has a caller outside lib (2015/06)
+cppcheck := "--std=c99 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=variableScope --suppress=staticFunction:lib/aoc.c --suppress=unmatchedSuppression:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
 
 default:
     @just --list
