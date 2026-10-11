@@ -1,11 +1,12 @@
 /* 2015 day 09, 00 naive: https://adventofcode.com/2015/day/9
  *
  * approach: try every city order, summing adjacent distances without a
- * return trip, and retain the shortest route visiting every city once.
+ * return trip, and retain the shortest and longest complete routes.
  * cost: time O(n * n!), memory O(n^2), one input pass.
  * trade: exhaustive search; bounded storage supports 32 cities and names
  * of at most 63 characters, rejecting larger inputs.
  */
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,25 +80,30 @@ main(void)
 	for (line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
 		end = 0;
-		if (sscanf(line, "%63s to %63s = %lld %n", from, to, &distance,
-		           &end) != 3 ||
-		    end == 0 || line[end] || distance < 0)
+		if (sscanf(line, "%63s to %63s = %n", from, to, &end) != 2 ||
+		    end == 0)
+			die("invalid distance");
+		errno = 0;
+		distance = strtoll(line + end, &endptr, 10);
+		if (errno || endptr == line + end || distance < 0 ||
+		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
 		a = city(&g, from);
 		b = city(&g, to);
 		g.distance[a][b] = g.distance[b][a] = distance;
 	}
-	for (i = 0; i < g.n; i++) {
-		g.used[i] = 1;
-		candidate = route(&g, i, g.n - 1);
-		g.used[i] = 0;
-		best = MIN(best, candidate);
-	}
-	if (g.n == 0)
-		best = 0;
+	for (i = 0; i < g.n; i++)
+		order[i] = i;
+	do {
+		total = route(&g, order);
+		if (total >= 0) {
+			best = MIN(best, total);
+			worst = MAX(worst, total);
+		}
+	} while (next(order, g.n));
 	if (best == LLONG_MAX)
 		die("no route visits every city");
-	if (printf("%lld\n", best) < 0)
+	if (printf("%lld\n%lld\n", best, worst) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
