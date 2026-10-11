@@ -6,7 +6,7 @@
  * bound: reading pair distances costs Omega(n^2). Exact arbitrary-weight
  * paths encode Hamiltonian path; no matching exponential bound is known.
  * rejected: before extraction, backward DP used 230069 work instructions
- * versus 229796 forward. With shared helpers: forward 231574; 00 6642206
+ * versus 229796 forward. With shared helpers: forward 231574; 00 6642315
  * (Linux just bench 9 50). Both DPs have the same asymptotic cost.
  */
 #include <errno.h>
