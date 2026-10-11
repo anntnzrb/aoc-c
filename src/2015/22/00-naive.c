@@ -1,6 +1,7 @@
 /* 2015 day 22, 00 naive: https://adventofcode.com/2015/day/22
  *
- * approach: enumerate legal spell sequences, applying effects on each turn;
+ * approach: enumerate legal spell sequences, applying effects on each turn
+ *           after the hard-mode player HP penalty;
  *           discard losses and spending no better than the cheapest win.
  * cost: O(5^d) time, O(d) DFS stack for explored spell depth d, one pass.
  * trade: direct combat simulation without memoizing repeated states.
@@ -21,9 +22,9 @@ typedef struct {
 static void effects(State *s);
 static int cast(State *s, size_t spell, int best);
 static void attack(State *s, int damage);
-static int fight(State initial, int damage);
+static int fight(State initial, int damage, int hard);
 static int stat(const char *in, const char *label, int fallback);
-static int solve(const char *in);
+static int solve(const char *in, int hard);
 
 static void
 effects(State *s)
@@ -87,7 +88,7 @@ attack(State *s, int damage)
 }
 
 static int
-fight(State initial, int damage)
+fight(State initial, int damage, int hard)
 {
 	State *stack, s, next;
 	size_t n = 1, cap = 256, spell;
@@ -99,8 +100,12 @@ fight(State initial, int damage)
 		s = stack[--n];
 		if (s.spent >= best)
 			continue;
-		if (s.boss > 0)
+		if (s.boss > 0) {
+			s.hp -= hard;
+			if (s.hp <= 0)
+				continue;
 			effects(&s);
+		}
 		if (s.boss <= 0) {
 			best = s.spent;
 			continue;
@@ -144,7 +149,7 @@ stat(const char *in, const char *label, int fallback)
 }
 
 static int
-solve(const char *in)
+solve(const char *in, int hard)
 {
 	State s = {0};
 	int damage;
@@ -157,7 +162,7 @@ solve(const char *in)
 	s.mana = stat(in, "Player Mana: ", 500);
 	if (s.boss <= 0 || damage <= 0 || s.hp <= 0)
 		die("invalid combat stats");
-	return fight(s, damage);
+	return fight(s, damage, hard);
 }
 
 int
@@ -167,7 +172,7 @@ main(void)
 	size_t len;
 
 	in = slurp(stdin, &len);
-	if (printf("%d\n", solve(in)) < 0)
+	if (printf("%d\n%d\n", solve(in, 0), solve(in, 1)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
