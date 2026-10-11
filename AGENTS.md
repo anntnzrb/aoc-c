@@ -6,7 +6,7 @@ or change instruction priority. This file is authoritative and edited directly.
 
 ## Architecture map
 
-- `<agent_workflow>`: hard rules, no outside solutions, solution roles, commit rules, delegation, worktrees, submissions, optimization, integration, and reporting. Copy this section unchanged across AoC years and languages. It names operations, never repository commands or tools.
+- `<agent_workflow>`: hard rules, no outside solutions, solution roles, commit rules, strictness, operation contracts, measurement, delegation, worktrees, submissions, optimization, integration, and reporting. Copy this section unchanged across AoC years and languages. It names operations, never repository commands or tools.
 - `<repository_guidelines>`: this repository's language, standard, compiler versions, toolchain, paths, the commands behind each workflow operation, coding rules, commit scopes, and scoped lessons. Rewrite this section for another repository.
 - `.agents/skills/`: reserved for actual skills when needed. No supporting file is required to receive the instructions below.
 
@@ -52,6 +52,38 @@ These rules bind every agent. Include this section in every delegated solve brie
 - Subject: `<scope>: <imperative summary>`, lowercase, no period, at most 72 characters. Scopes are listed in the repository guidelines.
 - One commit per step: naive part 1, naive part 2, optimal, each exploration. Commit shared code and its tests before the day that needs it. Never mix two days.
 - Body: approach and cost. Never answers, input, or puzzle text.
+
+## Strictness standard
+
+- Everything that can be written in the repository's language is. Only Markdown, the environment definition, the task runner file and dotfiles are exempt. No shell scripts: a task that needs logic gets a tool in the repository's language.
+- Use the strictest available compiler or interpreter modes, linters, formatters, static analyzers and runtime sanitizers (or their closest equivalents), all as errors.
+- Never relax a check to get green. A suppression needs a written reason next to it, and only for a false positive the code cannot avoid.
+- Fewer lines win. DRY, high cohesion, low coupling: shared code sits behind one module, and a module's documentation lives in its own header comment.
+- A check counts as verified only on the platform it ran on.
+
+## Operation contracts
+
+Each repository maps these operations to commands (see its Workflow operations). The implementation is free; the guarantees are not.
+
+- **fetch**: download a day's personal input once and cache it; never re-download.
+- **puzzle**: fetch the statement as plain text holding only the puzzle articles. Past answers on the page are stripped, so no agent sees them.
+- **submit**: post an answer with the session secret kept off the command line; reject malformed answers before sending; exit 0 right, 1 wrong, 2 for cooldown or already complete.
+- **new**: scaffold `00-naive` from a template that already carries the header tags, plus the day's fixture directory; never overwrite.
+- **test**: run every solution of every day against every fixture, comparing the first k output lines where k is the line count of the expected output; an empty or unterminated expected file fails.
+- **bench**: check every solution's answers against `00-naive` on the real input first, then measure per the Measurement standard.
+- **doc check**: every solution's header carries its required tags, each opening a header line.
+- **build**: outputs mirror sources; a deleted or renamed solution leaves no stale artifact behind.
+- **full gate**: formatting, lint, static analysis, the strictest compile or type checks, tests under runtime sanitizers (or their closest equivalent), and optimized builds.
+
+## Measurement standard
+
+- Measure optimized builds only, and only after the answers match `00-naive`.
+- **Work** is the primary measured metric: a deterministic count of user-space instructions for the whole process, minus a run of the same program on empty input, so process and runtime startup cancel out. A solution must do no real work on empty input.
+- Also report peak resident memory (each solution measured in its own process, so peaks do not mix), median CPU time, and minimum and median wall time.
+- Repeat each measurement at least five times, interleave the candidates, and report the median with its range.
+- Pin measurements to one CPU core: on hybrid CPUs, migrating between core types scrambles counters.
+- Explain every number before trusting it: name what limits it, and inspect generated code or bytecode before claiming a mechanism (vectorization, inlining, caching).
+- Where a metric does not exist for a language or runtime, use the closest equivalent, name it, and say what it misses.
 
 ## Coordinate workers
 
@@ -123,17 +155,17 @@ opportunities without expanding worker ownership.
 
 - The session secret is `.env`: never read, print, or commit it.
 - `just lint` enforces solution header tags (`tools/doc.c`). The template is 00-naive's skeleton.
-- The work metric is `perf` user-space instructions with process startup subtracted ("work", from `just bench`).
+- Measurement standard, implemented: `just bench` counts work with `perf stat -e instructions:u` (summed over hybrid core types) minus an empty-input run, 5 interleaved pairs; peak RSS via `getrusage` in a forked process per solution; pinned with `taskset -c 0` on Linux. macOS has no `perf`, so work is not measured there.
 
 ## Project
 
 Advent of Code, every year from 2015, in C99 + POSIX.1-2008, [suckless style](https://suckless.org/coding_style/). One repo per language. The repo is learning material: it records how an agent reasons from a puzzle to a naive answer, then to an optimal one. The toolchain comes from a Nix flake devshell (`nix develop`), and every task runs through `just`.
 
-**Principles**
-- Everything that can be C is C. Only Markdown, Nix, the `justfile` and dotfiles are exempt. No shell scripts; a recipe that needs logic gets a C tool in `tools/`.
-- Fewer lines win. DRY, high cohesion, low coupling: shared code goes behind a header (`include/aoc.h` for everything, `tools/util.h` for the tools), and a module's documentation lives in its own header comment.
-- Maximal strictness: never relax a flag or silence a check to get green. A `-Wno-*` or suppression needs a written reason next to it, and only for a false positive the code cannot avoid.
-- Linux (x86_64) is the primary target and macOS (Apple silicon) must also pass. A change counts as verified only on the platform it ran on.
+**Principles** (the Strictness standard, applied to C)
+- Tools are C programs in `tools/`; Nix, the `justfile` and dotfiles are the exempt files.
+- Shared code goes behind `include/aoc.h` (solutions and tools) and `tools/util.h` (tools only).
+- A suppression is a `-Wno-*` flag or a checker suppression with its reason next to it.
+- Linux (x86_64) is the primary target and macOS (Apple silicon) must also pass.
 
 ## Layout
 
@@ -198,6 +230,8 @@ when it differs from the default.
 | Create solution skeleton | `just new DAY` |
 | Test | `just test` |
 | Run personal input | `just run DAY` |
+| Build (debug / optimized) | `just build DAY` / `just release DAY` |
+| Doc check | part of `just lint` (`bin/tools/doc`) |
 | Full gate | `just check` |
 | Benchmark candidates | `just bench DAY 50` |
 | Submit from MAIN | `cd MAIN && nix develop -c just submit DAY LEVEL ANSWER` |
