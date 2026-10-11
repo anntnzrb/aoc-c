@@ -31,6 +31,8 @@ Every solution is a Unix filter: input on stdin, part 1 then part 2 on stdout, o
 ```sh
 just new 4            # src/YEAR/04/00-naive.c + tests/YEAR/04/
 just fetch 4          # inputs/YEAR/day04.txt (cached)
+just puzzle 4         # puzzles/YEAR/04.txt (always refetched, articles only)
+just submit 4 1 X     # submit part 1 answer and print the response
 just run 4 [NN] [in]  # debug build, run solution NN (default 00)
 just test             # lib unit tests + every solution x every fixture, all years
 just bench 4 [runs]   # release builds: answers must equal 00's, then wall/cpu/rss/instructions
@@ -84,9 +86,9 @@ Binds every agent, including delegates; paste it into every delegated prompt.
 
 Trigger: "solve N". Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
 
-1. `just fetch N`, get the statement, `just new N`.
+1. `just fetch N`, `just puzzle N`, `just new N`.
 2. Write the statement's examples as fixtures; a part-1 `.out` has one line.
-3. Implement 00 part 1, `just run N`, cross-check with a quick independent script when cheap, submit. After a wrong answer stop and diagnose; lockouts escalate. `just check`, commit.
+3. Implement 00 part 1, `just run N`, cross-check with a quick independent script when cheap, `just submit N 1 ANSWER`. After a wrong answer stop and diagnose; lockouts escalate. `just check`, commit.
 4. Part 2 likewise (it unlocks only after part 1), commit.
 5. Write 01: argue the bound, `just bench N`, commit. Add explorations when they teach something.
 6. Report: answers, ✓/✗, approach, cost vs bound, bench numbers. Implementer failing `just test` twice: the orchestrator takes over.

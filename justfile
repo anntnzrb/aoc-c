@@ -71,7 +71,15 @@ new day: tools
 
 # Download inputs/YEAR/dayDD.txt (session from .env or Firefox)
 fetch day: tools
-    bin/tools/fetch {{ year }} {{ day }}
+    bin/tools/web input {{ year }} {{ day }}
+
+# Download puzzles/YEAR/DD.txt (always refetch, articles only)
+puzzle day: tools
+    bin/tools/web puzzle {{ year }} {{ day }}
+
+# Submit a part's answer and print the site's response
+submit day level answer: tools
+    bin/tools/web submit {{ year }} {{ day }} {{ quote(level) }} {{ quote(answer) }}
 
 # Sanitized debug builds of a day's solutions into bin/YEAR/DD/
 build day: tools

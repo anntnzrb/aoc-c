@@ -1,12 +1,14 @@
-/* fetch: download an Advent of Code puzzle input into inputs/YEAR/dayNN.txt
+/* web: authenticated Advent of Code input, puzzle statements and submissions
  *
- * usage: fetch year day
+ * usage: web input year day | web puzzle year day
+ *        web submit year day level answer
  *
- * The session cookie comes from, in order:
- *   1. AOC_SESSION in the environment
- *   2. AOC_SESSION in ./.env
- *   3. the newest adventofcode.com "session" cookie in a Firefox profile
- * Inputs are cached: an existing file is never re-downloaded.
+ * Session lookup: AOC_SESSION environment, ./.env, newest Firefox cookie.
+ * Sessions must be hex; curl receives the cookie on stdin, never its argv.
+ * Inputs are cached; statements always refetch and keep only article contents,
+ * stripping the page's past answers. Both files are replaced atomically.
+ * Submission levels are 1 or 2; answers must match [0-9A-Za-z,-]+.
+ * Submit exits 0 for right, 1 for wrong, 2 for any other response.
  * curl(1) speaks TLS and sqlite3(1) reads the cookie database.
  */
 #include <ctype.h>
