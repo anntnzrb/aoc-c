@@ -19,7 +19,7 @@ src/YYYY/DD/NN-slug.c   solutions: 00-naive, 01-optimal, 02+ explorations
 tests/YYYY/DD/*.in|out  puzzle-example fixtures (gitignored)
 inputs/YYYY/dayDD.txt   personal inputs (gitignored, never commit)
 include/aoc.h lib/aoc.c die, ecalloc, ereallocarray, slurp, puzzleday; linked into every binary
-tools/*.c, tools/util.* day, new, fetch, build, test, bench, doc; see each file's header
+tools/*.c, tools/util.* day, new, web, build, test, bench, doc; see each file's header
 templates/day.c         skeleton for `just new` (YEAR, DAY, DAYN placeholders)
 bin/YYYY/DD/            sanitized debug builds; bin/rel/YYYY/DD/ release; bin/tools/
 ```

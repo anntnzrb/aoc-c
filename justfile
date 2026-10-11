@@ -59,7 +59,7 @@ tools:
     #!/bin/sh
     set -eu
     mkdir -p bin/tools
-    for t in day new fetch build test bench doc; do
+    for t in day new web build test bench doc; do
         b=bin/tools/$t
         [ -f "$b" ] && [ -z "$(find tools lib include -newer "$b")" ] && continue
         {{ cc }} {{ cflags }} {{ debug }} -o "$b" "tools/$t.c" tools/util.c {{ lib }}

@@ -27,38 +27,74 @@
 	"SELECT expiry, value FROM moz_cookies "                              \
 	"WHERE host LIKE '%adventofcode.com' AND name = 'session';"
 
-static int feed(char *const argv[], const char *data);
+static char *request(char *url, char *path, char *post);
 static char *dotenv(void);
 static char *firefox(void);
 static char *session(void);
+static char *plaintext(const char *p, const char *end, char *out);
+static char *articles(char *html);
+static void download(int year, int day, int input);
 
-/* run argv with data on its stdin and its stdout on our stderr; nonzero
- * if it fails */
-static int
-feed(char *const argv[], const char *data)
+/* Close the header pipe before reading the body: curl waits for EOF. */
+static char *
+request(char *url, char *path, char *post)
 {
-	size_t n = strlen(data);
+	char prog[] = "curl", fl[] = "-fsS", af[] = "-A",
+	     agent[] = "aoc-c tools/web", hf[] = "-H", stdinhdr[] = "@-",
+	     of[] = "-o", df[] = "--data";
+	char *argv[10], *s, *hdr, *data, *body;
+	FILE *fp;
+	size_t n, len;
 	ssize_t w;
-	int p[2];
+	int p[2], q[2], i = 6;
 	pid_t pid;
 
+	s = session();
+	data = hdr = smprintf("Cookie: session=%s\n", s);
+	free(s);
+	argv[0] = prog;
+	argv[1] = fl;
+	argv[2] = af;
+	argv[3] = agent;
+	argv[4] = hf;
+	argv[5] = stdinhdr;
+	if (path || post) {
+		argv[i++] = path ? of : df;
+		argv[i++] = path ? path : post;
+	}
+	argv[i++] = url;
+	argv[i] = NULL;
 	xpipe(p);
-	pid = spawn(argv, p[0], 2, -1);
-	if (close(p[0]) < 0)
-		die("fetch: close:");
+	xpipe(q);
+	pid = spawn(argv, p[0], q[1], -1);
+	if (close(p[0]) < 0 || close(q[1]) < 0)
+		die("web: close:");
+	n = strlen(hdr);
 	while (n > 0) {
 		if ((w = write(p[1], data, n)) < 0) {
 			if (errno == EINTR)
 				continue;
-			/* EPIPE: the child died early; reap() reports it */
+			/* EPIPE: the child died early; reap() reports it. */
 			break;
 		}
 		data += w;
 		n -= (size_t)w;
 	}
+	free(hdr);
 	if (close(p[1]) < 0)
-		die("fetch: close:");
-	return reap(pid);
+		die("web: close:");
+	if (!(fp = fdopen(q[0], "r")))
+		die("web: fdopen:");
+	body = slurp(fp, &len);
+	if (fclose(fp) == EOF)
+		die("web: fclose:");
+	if (reap(pid)) {
+		if (path)
+			(void)unlink(path);
+		die("web: request failed (expired session or day not "
+		    "unlocked?)");
+	}
+	return body;
 }
 
 /* AOC_SESSION from ./.env: KEY=VALUE lines, parsed, never sourced */
@@ -72,11 +108,11 @@ dotenv(void)
 	if (!(fp = fopen(".env", "r"))) {
 		if (errno == ENOENT)
 			return NULL;
-		die("fetch: fopen .env:");
+		die("web: fopen .env:");
 	}
 	buf = slurp(fp, &len);
 	if (fclose(fp) == EOF)
-		die("fetch: fclose .env:");
+		die("web: fclose .env:");
 	for (line = strtok(buf, "\n"); line && !s; line = strtok(NULL, "\n")) {
 		if (strncmp(line, ENVKEY, sizeof(ENVKEY) - 1) != 0)
 			continue;
@@ -156,82 +192,167 @@ session(void)
 	if ((env = getenv("AOC_SESSION")) && *env)
 		s = smprintf("%s", env);
 	else if (!(s = dotenv()) && !(s = firefox()))
-		die("fetch: no session: set AOC_SESSION in .env or log in "
+		die("web: no session: set AOC_SESSION in .env or log in "
 		    "with Firefox");
 	for (i = 0; s[i]; i++)
 		if (!isxdigit((unsigned char)s[i]))
-			die("fetch: session cookie is not hex");
+			die("web: session cookie is not hex");
 	if (i == 0)
-		die("fetch: empty session cookie");
+		die("web: empty session cookie");
 	return s;
+}
+
+static char *
+plaintext(const char *p, const char *end, char *out)
+{
+	static const char *const breaks[] = {
+	    "</p>", "</li>", "</pre>", "</h2>", "<br>", "<br ", "<br/",
+	};
+	static const char *const entities[] = {
+	    "&lt;", "&gt;", "&amp;", "&quot;", "&#39;",
+	};
+	static const char decoded[] = "<>&\"'";
+	const char *tag;
+	size_t i, n;
+
+	while (p < end) {
+		if (*p == '<') {
+			if (!(tag = strchr(p, '>')) || tag >= end)
+				die("web: incomplete tag");
+			for (i = 0; i < LEN(breaks); i++)
+				if (!strncmp(p, breaks[i],
+				             strlen(breaks[i]))) {
+					*out++ = '\n';
+					break;
+				}
+			p = tag + 1;
+			continue;
+		}
+		for (i = 0; i < LEN(entities); i++) {
+			n = strlen(entities[i]);
+			if (!strncmp(p, entities[i], n)) {
+				*out++ = decoded[i];
+				p += n;
+				break;
+			}
+		}
+		if (i == LEN(entities))
+			*out++ = *p++;
+	}
+	return out;
+}
+
+/* Convert in place, keeping only articles so past answers cannot leak. */
+static char *
+articles(char *html)
+{
+	char *p = html, *out = html, *end;
+
+	while ((p = strstr(p, "<article"))) {
+		p += sizeof("<article") - 1;
+		if (*p != '>' && !isspace((unsigned char)*p))
+			continue;
+		if (!(p = strchr(p, '>')))
+			die("web: incomplete article");
+		p++;
+		if (!(end = strstr(p, "</article>")))
+			die("web: incomplete article");
+		out = plaintext(p, end, out);
+		if (out > html && out[-1] != '\n')
+			*out++ = '\n';
+		p = end + sizeof("</article>") - 1;
+	}
+	*out = '\0';
+	return html;
+}
+
+static void
+download(int year, int day, int input)
+{
+	struct stat st;
+	FILE *fp;
+	char *dir, *out, *tmp, *url, *body;
+
+	dir = smprintf("%s/%d", input ? "inputs" : "puzzles", year);
+	out = input ? smprintf("%s/day%02d.txt", dir, day)
+	            : smprintf("%s/%02d.txt", dir, day);
+	if (input && stat(out, &st) == 0 && st.st_size > 0) {
+		if (printf("%s already exists\n", out) < 0)
+			die("web: printf:");
+		free(out);
+		free(dir);
+		return;
+	}
+	url = smprintf("https://adventofcode.com/%d/day/%d%s", year, day,
+	               input ? "/input" : "");
+	tmp = smprintf("%s.tmp", out);
+	mkdirp(dir);
+	body = request(url, input ? tmp : NULL, NULL);
+	if (!input) {
+		articles(body);
+		if (!*body)
+			die("web: no puzzle articles");
+		if (!(fp = fopen(tmp, "w")))
+			die("web: fopen %s:", tmp);
+		if (fputs(body, fp) == EOF || fclose(fp) == EOF) {
+			(void)unlink(tmp);
+			die("web: write %s:", tmp);
+		}
+	}
+	if (rename(tmp, out) < 0) {
+		(void)unlink(tmp);
+		die("web: rename %s:", tmp);
+	}
+	if (printf("%s\n", out) < 0)
+		die("web: printf:");
+	free(body);
+	free(url);
+	free(tmp);
+	free(out);
+	free(dir);
 }
 
 int
 main(int argc, char *argv[])
 {
-	struct stat st;
-	char prog[] = "curl", fl[] = "-fsS", af[] = "-A",
-	     agent[] = "aoc-c tools/fetch", hf[] = "-H", stdinhdr[] = "@-",
-	     of[] = "-o";
-	char *cargv[10], *dir, *out, *tmp, *url, *hdr, *s;
+	char *url, *body, *post;
 	const char *err;
-	int year, day;
+	int year, day, submit, rc = 2;
 
-	if (argc != 3)
-		die("usage: fetch year day");
-	if ((err = puzzleday(argv[1], argv[2], &year, &day)))
-		die("fetch: %s %s: %s", argv[1], argv[2], err);
-
-	dir = smprintf("inputs/%d", year);
-	out = smprintf("%s/day%02d.txt", dir, day);
-	if (stat(out, &st) == 0 && st.st_size > 0) {
-		if (printf("%s already exists\n", out) < 0)
-			die("fetch: printf:");
-		free(out);
-		free(dir);
+	if (argc < 4 ||
+	    (strcmp(argv[1], "input") != 0 && strcmp(argv[1], "puzzle") != 0 &&
+	     strcmp(argv[1], "submit") != 0))
+		die("usage: web input|puzzle year day | "
+		    "web submit year day level answer");
+	submit = strcmp(argv[1], "submit") == 0;
+	if (argc != (submit ? 6 : 4))
+		die("web: wrong number of arguments");
+	if ((err = puzzleday(argv[2], argv[3], &year, &day)))
+		die("web: %s %s: %s", argv[2], argv[3], err);
+	/* A dead curl must surface as EPIPE, not kill us mid-write. */
+	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+		die("web: signal:");
+	if (!submit) {
+		download(year, day, strcmp(argv[1], "input") == 0);
 		return EXIT_SUCCESS;
 	}
-
-	/* a dead curl must surface as EPIPE, not kill us mid-write */
-	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
-		die("fetch: signal:");
-
-	s = session();
-	mkdirp(dir);
-	tmp = smprintf("%s.tmp", out);
-	url = smprintf("https://adventofcode.com/%d/day/%d/input", year, day);
-	hdr = smprintf("Cookie: session=%s\n", s);
-
-	/* the cookie goes through stdin so it never shows up in ps(1);
-	 * AoC asks automated tools to identify themselves in the
-	 * User-Agent */
-	cargv[0] = prog;
-	cargv[1] = fl;
-	cargv[2] = af;
-	cargv[3] = agent;
-	cargv[4] = hf;
-	cargv[5] = stdinhdr;
-	cargv[6] = of;
-	cargv[7] = tmp;
-	cargv[8] = url;
-	cargv[9] = NULL;
-	if (feed(cargv, hdr)) {
-		(void)unlink(tmp);
-		die("fetch: download failed (expired session or day not "
-		    "unlocked?)");
-	}
-	if (rename(tmp, out) < 0) {
-		(void)unlink(tmp);
-		die("fetch: rename %s:", tmp);
-	}
-	if (printf("%s\n", out) < 0)
-		die("fetch: printf:");
-
-	free(hdr);
+	if (strcmp(argv[4], "1") != 0 && strcmp(argv[4], "2") != 0)
+		die("web: level must be 1 or 2");
+	if (!*argv[5] ||
+	    strspn(argv[5], "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	                    "abcdefghijklmnopqrstuvwxyz,-") != strlen(argv[5]))
+		die("web: answer must match [0-9A-Za-z,-]+");
+	post = smprintf("level=%s&answer=%s", argv[4], argv[5]);
+	url = smprintf("https://adventofcode.com/%d/day/%d/answer", year, day);
+	body = articles(request(url, NULL, post));
+	if (fputs(body, stdout) == EOF)
+		die("web: fputs:");
+	if (strstr(body, "That's the right answer"))
+		rc = 0;
+	else if (strstr(body, "That's not the right answer"))
+		rc = 1;
+	free(body);
+	free(post);
 	free(url);
-	free(tmp);
-	free(s);
-	free(out);
-	free(dir);
-	return EXIT_SUCCESS;
+	return rc;
 }
