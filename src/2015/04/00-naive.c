@@ -1,10 +1,10 @@
 /* 2015 day 04, 00 naive: https://adventofcode.com/2015/day/4
  *
- * approach: append each positive decimal integer and compute RFC 1321 MD5;
- *           stop at the first digest whose first five or six hex digits are
- * zero. cost: time O(N * (k + log N)), memory O(k + log N), one input pass; N
- * is the larger matching integer and k is the key length. trade: recompute the
- * full padded hash for every candidate, in order.
+ * approach: append each positive integer to the key and compute RFC 1321
+ * MD5; stop at the first digest starting with five (six) hex zeros.
+ * cost: time O(N * (k + log N)), memory O(k + log N), one input pass; N is
+ * the larger matching integer and k the key length.
+ * trade: recomputes the full padded hash for every candidate, in order.
  */
 #include <inttypes.h>
 #include <stdint.h>
