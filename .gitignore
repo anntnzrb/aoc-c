@@ -1,0 +1,32 @@
+# AoC content is not redistributable (adventofcode.com/about):
+# inputs, puzzle statements, and fixtures copied from puzzle examples,
+# for every year; tests/lib.c stays tracked
+/inputs/
+/puzzles/
+/tests/2*/
+
+# secrets: the session cookie, in any .env variant
+.env
+.env.*
+!.env.example
+
+# build artifacts
+/bin/
+*.o
+*.dSYM/
+*.plist
+/result
+
+# interrupted atomic writes from the tools (dayNN.txt.tmp, ...)
+*.tmp
+
+# crash dumps from sanitized debug runs
+core
+core.[0-9]*
+
+# editor and tooling state
+/.cache/
+/compile_commands.json
+.direnv/
+.DS_Store
+/.claude/settings.local.json

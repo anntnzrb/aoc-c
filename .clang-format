@@ -1,0 +1,16 @@
+# suckless style: https://suckless.org/coding_style/
+BasedOnStyle: LLVM
+UseTab: ForIndentation
+IndentWidth: 8
+TabWidth: 8
+ColumnLimit: 79
+BreakBeforeBraces: Linux
+AlwaysBreakAfterReturnType: AllDefinitions
+PointerAlignment: Right
+IndentCaseLabels: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+SpaceBeforeParens: ControlStatements
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive

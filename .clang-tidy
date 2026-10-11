@@ -1,0 +1,30 @@
+---
+# Disabled checks fight suckless style or are Annex K/C11-only advice:
+#   assignment-in-if-condition: suckless writes "if (!(p = malloc(n)))"
+#   braces-around-statements: suckless omits braces on single statements
+#   easily-swappable-parameters: noise for (int, int) helpers
+#   identifier-length: c, i, n are idiomatic in short C
+#   insecureAPI.DeprecatedOrUnsafeBufferHandling: wants memset_s (Annex K)
+#   isolate-declaration: suckless allows "int c, n;"
+#   magic-numbers: puzzle constants; prefer #define where it adds meaning
+# include-cleaner maps only ISO C errno macros to <errno.h>; glibc defines
+# the POSIX ones (EINTR, ENOENT, ...) in kernel headers, so ignore those.
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-easily-swappable-parameters,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -readability-braces-around-statements,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-magic-numbers
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+CheckOptions:
+  misc-include-cleaner.IgnoreHeaders: 'asm-generic/errno.*\.h'
