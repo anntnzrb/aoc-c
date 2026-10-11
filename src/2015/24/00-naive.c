@@ -104,17 +104,29 @@ solve(void)
 int
 main(void)
 {
-	int value, sum, result;
+	char *in, *p, *end;
+	long value;
+	size_t len;
+	int sum;
 
+	in = slurp(stdin, &len);
+	p = in;
 	sum = 0;
-	while ((result = scanf("%d", &value)) == 1) {
-		if (n == 63 || value <= 0 || value > INT_MAX - sum)
+	while (*p) {
+		if (isspace((unsigned char)*p)) {
+			p++;
+			continue;
+		}
+		errno = 0;
+		value = strtol(p, &end, 10);
+		if (errno || end == p || n == 63 || value <= 0 ||
+		    value > INT_MAX - sum)
 			die("invalid package weight or too many packages");
-		weights[n++] = value;
-		sum += value;
+		weights[n++] = (int)value;
+		sum += (int)value;
+		p = end;
 	}
-	if (result != EOF || ferror(stdin))
-		die("read package weights");
+	free(in);
 	if (!n)
 		return EXIT_SUCCESS;
 	if (sum % 3)
