@@ -8,6 +8,7 @@ or change instruction priority. This file is authoritative and edited directly.
 
 - `<agent_workflow>`: hard rules, no outside solutions, solution roles, commit rules, strictness, operation contracts, measurement, delegation, worktrees, submissions, optimization, integration, and reporting. Copy this section unchanged across AoC years and languages. It names operations, never repository commands or tools.
 - `<repository_guidelines>`: this repository's language, standard, compiler versions, toolchain, paths, the commands behind each workflow operation, coding rules, commit scopes, and scoped lessons. Rewrite this section for another repository.
+- `docs/journal/YEAR.md`: per-day learning log (ideas, surprises, measurements).
 - `.agents/skills/`: reserved for actual skills when needed. No supporting file is required to receive the instructions below.
 
 To reuse this architecture, copy this file, retain the agent workflow, and adapt
@@ -38,6 +39,7 @@ These rules bind every agent. Include this section in every delegated solve brie
 - Derive solutions from the puzzle statement. Never search for, fetch, or read AoC solutions, write-ups, megathreads, repositories, or videos.
 - Use adventofcode.com, language and tool documentation, and general algorithms not tied to a puzzle.
 - Do not use remembered answers or solutions. Show the reasoning from the statement.
+- A journal from another repository covering the same year counts as an outside solution: never read it while solving that year. This repository's journal is fine for other days.
 - Disable an implementer's web search and network access with per-run options when supported. Never change persistent user configuration.
 
 ## Solution roles
@@ -136,7 +138,7 @@ Use the repository's documented exit codes to distinguish responses.
 
 1. Verify the full gate and benchmark results. Merge finished days in order.
 2. Copy the day's gitignored fixtures into MAIN.
-3. Incorporate documentation corrections and scoped lessons. Extract recurring helpers only when justified, then benchmark affected optimal solutions again.
+3. Append the day's entry to `docs/journal/YEAR.md` from the worker's report: key idea, surprise, measured 00 to 01 work; "nothing new" is a valid entry. Never include puzzle text or answers. When a lesson recurs, promote it to a rule or a tool. Incorporate documentation corrections and scoped lessons. Extract recurring helpers only when justified, then benchmark affected optimal solutions again.
 4. Remove the completed worktree and delete its branch with `git branch -d`. Push after each finished unit.
 5. Run a different model's naive solutions as a non-blocking oracle audit afterwards. Apply the same no-outside-solutions rules.
 
