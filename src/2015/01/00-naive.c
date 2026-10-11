@@ -1,4 +1,13 @@
-/* 2015 day 01: https://adventofcode.com/2015/day/1 */
+/* 2015 day 01, 00 naive: https://adventofcode.com/2015/day/1
+ *
+ * approach: the template shape. slurp() the input, then part1 sums the
+ * steps and part2 scans again until the floor first reaches -1.
+ * cost: time O(n), memory O(n), 2 passes.
+ * trade: the most direct reading of the puzzle, one function per part, at
+ * the price of holding the input and reading it twice. part1's switch
+ * loop is branch-free, so it still vectorizes and beats a naive fused
+ * loop.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 
