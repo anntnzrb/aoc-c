@@ -34,11 +34,16 @@ part1(const char *in, size_t len)
 	return floor;
 }
 
+/* 1-based position of the first step into the basement; 0 if never */
 static long long
 part2(const char *in, size_t len)
 {
-	(void)in;
-	(void)len;
+	long long floor = 0;
+	size_t i;
+
+	for (i = 0; i < len; i++)
+		if ((floor += step(in[i])) == -1)
+			return (long long)i + 1;
 	return 0;
 }
 
