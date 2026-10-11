@@ -1,7 +1,8 @@
 /* 2015 day 18, 00 naive: https://adventofcode.com/2015/day/18
  *
  * approach: count eight neighbors in the old grid, write each next state
- * into a second grid, then swap; fixtures may prefix the grid with steps N.
+ * into a second grid, then swap; part 2 pins corners before and after each
+ * step. Fixtures may prefix the grid with steps N.
  * cost: time O(steps * width * height), memory O(width * height), two input
  * passes and one grid pass per step
  * trade: direct simulation with bounds checks for every neighbor
@@ -17,7 +18,8 @@ static int neighbors(const unsigned char *grid, int width, int height, int x,
 static void evolve(const unsigned char *grid, unsigned char *next, int width,
                    int height);
 static int rows(const char *in, int width);
-static long long simulate(const char *in, size_t len);
+static void corners(unsigned char *grid, int width, int height);
+static long long simulate(const char *in, size_t len, int stuck);
 
 static int
 neighbors(const unsigned char *grid, int width, int height, int x, int y)
@@ -75,8 +77,19 @@ rows(const char *in, int width)
 	return height;
 }
 
+static void
+corners(unsigned char *grid, int width, int height)
+{
+	size_t lastrow = (size_t)(height - 1) * (size_t)width;
+
+	grid[0] = 1;
+	grid[width - 1] = 1;
+	grid[lastrow] = 1;
+	grid[lastrow + (size_t)(width - 1)] = 1;
+}
+
 static long long
-simulate(const char *in, size_t len)
+simulate(const char *in, size_t len, int stuck)
 {
 	unsigned char *grid, *next, *swap;
 	const char *p;
@@ -105,8 +118,12 @@ simulate(const char *in, size_t len)
 	for (p = in, i = 0; *p; p++)
 		if (*p != '\n')
 			grid[i++] = *p == '#';
+	if (stuck)
+		corners(grid, width, height);
 	for (step = 0; step < steps; step++) {
 		evolve(grid, next, width, height);
+		if (stuck)
+			corners(next, width, height);
 		swap = grid;
 		grid = next;
 		next = swap;
@@ -125,7 +142,8 @@ main(void)
 	size_t len;
 
 	in = slurp(stdin, &len);
-	if (printf("%lld\n", simulate(in, len)) < 0)
+	if (printf("%lld\n%lld\n", simulate(in, len, 0),
+	           simulate(in, len, 1)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
