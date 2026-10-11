@@ -94,4 +94,6 @@ Trigger: "solve N". Orchestrator runs the pipeline and checks every result; the 
 6. Report: answers, ✓/✗, approach, cost vs bound, bench numbers. Implementer failing `just test` twice: the orchestrator takes over.
 
 Lessons:
+- autommit commits only the staged snapshot when anything is staged: after `git mv`, run `git add -A` first or the content edits stay behind (2015/02's `web` rename landed as two runs).
+- On an account that already solved a day, `just submit` only answers "already complete" and verifies nothing; rely on the 00 oracle plus an independent cross-check (awk, for example).
 - A per-element branch can block vectorization: 2015/01's fused loop with a basement check ran more instructions than two passes. Measure before believing "one pass".
