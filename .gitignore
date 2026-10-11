@@ -30,3 +30,6 @@ core.[0-9]*
 .direnv/
 .DS_Store
 /.claude/settings.local.json
+
+# local notes: pending decisions and ideas, not published
+/docs/roadmap.md
