@@ -84,14 +84,14 @@ Binds every agent, including delegates; paste it into every delegated prompt.
 
 ## Solve Workflow
 
-Trigger: "solve N". Answers come first: a worker in its own worktree follows `docs/solve.md`, submitting each part itself as soon as its own checks pass (fast lane), then writes 01 on request (slow lane) while the next day's fast lane already runs; the orchestrator verifies (gate, bench, independent cross-check), merges days in order, copies the day's fixtures to main, then removes the worktree and deletes the branch (`git branch -d`, which refuses an unmerged one). Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
+Trigger: "solve N". Answers come first. The orchestrator starts one worker per day, each in its own worktree, and the worker follows `docs/solve.md`. Fast lanes of several days run in parallel once their part-1 statements are available. The orchestrator never blocks on a worker and does not gate submissions on its own checks. It verifies (gate, bench), merges days in order, copies the day's fixtures to main, removes the worktree, deletes the branch with `git branch -d`, and pushes after each finished unit. An oracle (a different model's naive solutions) is a non-blocking audit run afterwards. The worker writes code from the statement, this file and a green `just test` target; the orchestrator takes over if `just test` fails twice.
 
-1. `just fetch N`, `just puzzle N`, `just new N`.
-2. Write the statement's examples as fixtures; a part-1 `.out` has one line.
-3. Implement 00 part 1, `just run N`, cross-check with a quick independent script when cheap, `just submit N 1 ANSWER`. After a wrong answer stop and diagnose; lockouts escalate. `just check`, commit.
-4. Part 2 likewise (it unlocks only after part 1), commit.
-5. Write 01: argue the bound, `just bench N`, commit. Add explorations when they teach something.
-6. Report: answers, ✓/✗, approach, cost vs bound, bench numbers. Implementer failing `just test` twice: the orchestrator takes over.
+1. Fast lane, part 1: `just fetch N`, `just puzzle N`, `just new N`. Write the part-1 examples as fixtures (`p1-*`, one-line `.out`).
+2. Implement 00-naive part 1, `just test`, `just run N`, `just check`, commit. Submit from main: `cd MAIN && nix develop -c just submit N 1 ANSWER`. Exit 0 (right): run `just puzzle N` in MAIN and copy the refreshed statement into the worktree. Exit 1 (wrong): stop and report; never guess again, lockouts escalate. Exit 2: "too recently" means wait the stated seconds and retry, since workers share the account; "already complete" means go on.
+3. Part 2 likewise: `p2-*` fixtures (two-line `.out`), `just check`, commit, submit part 2 the same way. Then stop and report both answers.
+4. Slow lane, on request after both stars: write 01-optimal on the same worker thread. Argue the bound, try at least two candidates, keep the least `work` from `just bench N 50`, record the losers in `rejected:`, `just check`, commit.
+5. Add optional 02+ explorations when one shows a distinct idea, one commit each.
+6. Report: answers, ✓/✗, approach, cost vs bound, bench numbers, commits, lessons for this file.
 
 Lessons:
 - autommit commits only the staged snapshot when anything is staged: after `git mv`, run `git add -A` first or the content edits stay behind (2015/02's `web` rename landed as two runs).
