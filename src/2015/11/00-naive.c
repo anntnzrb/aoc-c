@@ -73,11 +73,13 @@ main(void)
 	for (i = 0; i < len; ++i)
 		if (in[i] < 'a' || in[i] > 'z')
 			die("expected eight lowercase letters");
-	do {
-		increment(in, len);
-	} while (!valid(in, len));
-	if (printf("%s\n", in) < 0)
-		die("printf:");
+	for (i = 0; i < 2; ++i) {
+		do {
+			increment(in, len);
+		} while (!valid(in, len));
+		if (printf("%s\n", in) < 0)
+			die("printf:");
+	}
 	free(in);
 	return EXIT_SUCCESS;
 }
