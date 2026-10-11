@@ -5,8 +5,9 @@
  * cost: time O(n^2 * 2^n), memory O(n * 2^n), one input pass.
  * bound: reading pair distances costs Omega(n^2). Exact arbitrary-weight
  * paths encode Hamiltonian path; no matching exponential bound is known.
- * rejected: backward predecessor DP used 230069 work instructions versus
- * 229796 forward (just bench 9 50); 00 used 6217112. Same asymptotic cost.
+ * rejected: before extraction, backward DP used 230069 work instructions
+ * versus 229796 forward. With shared helpers: forward 231574; 00 6642206
+ * (Linux just bench 9 50). Both DPs have the same asymptotic cost.
  */
 #include <errno.h>
 #include <limits.h>
@@ -28,25 +29,10 @@ typedef struct {
 	long long low, high;
 } Range;
 
-static size_t city(Graph *g, const char *name);
 static void parse(Graph *g);
 static Range *table(size_t n, size_t states);
 static void extend(Range *dst, Range src, long long distance);
 static Range solve(const Graph *g);
-
-static size_t
-city(Graph *g, const char *name)
-{
-	size_t i;
-
-	for (i = 0; i < g->n; i++)
-		if (strcmp(g->names[i], name) == 0)
-			return i;
-	if (g->n == CITIES)
-		die("too many cities");
-	memcpy(g->names[g->n], name, strlen(name) + 1);
-	return g->n++;
-}
 
 static void
 parse(Graph *g)
@@ -71,8 +57,8 @@ parse(Graph *g)
 		if (errno || endptr == line + end || distance < 0 ||
 		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
-		a = city(g, from);
-		b = city(g, to);
+		a = nameid(g->names, &g->n, CITIES, from);
+		b = nameid(g->names, &g->n, CITIES, to);
 		g->distance[a][b] = g->distance[b][a] = distance;
 	}
 	free(in);

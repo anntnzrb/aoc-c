@@ -22,47 +22,7 @@ typedef struct {
 	size_t n;
 } Graph;
 
-static size_t city(Graph *g, const char *name);
-static int next(size_t *order, size_t n);
 static long long route(const Graph *g, const size_t *order);
-
-static size_t
-city(Graph *g, const char *name)
-{
-	size_t i;
-
-	for (i = 0; i < g->n; i++)
-		if (strcmp(g->names[i], name) == 0)
-			return i;
-	if (g->n == CITIES)
-		die("too many cities");
-	memcpy(g->names[g->n], name, strlen(name) + 1);
-	return g->n++;
-}
-
-static int
-next(size_t *order, size_t n)
-{
-	size_t i, j, tmp;
-
-	if (n < 2)
-		return 0;
-	for (i = n - 1; i > 0 && order[i - 1] > order[i]; i--)
-		;
-	if (i == 0)
-		return 0;
-	for (j = n - 1; order[j] < order[i - 1]; j--)
-		;
-	tmp = order[i - 1];
-	order[i - 1] = order[j];
-	order[j] = tmp;
-	for (j = n - 1; i < j; i++, j--) {
-		tmp = order[i];
-		order[i] = order[j];
-		order[j] = tmp;
-	}
-	return 1;
-}
 
 static long long
 route(const Graph *g, const size_t *order)
@@ -105,8 +65,8 @@ main(void)
 		if (errno || endptr == line + end || distance < 0 ||
 		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
-		a = city(&g, from);
-		b = city(&g, to);
+		a = nameid(g.names, &g.n, CITIES, from);
+		b = nameid(g.names, &g.n, CITIES, to);
 		g.distance[a][b] = g.distance[b][a] = distance;
 	}
 	for (i = 0; i < g.n; i++)
@@ -117,7 +77,7 @@ main(void)
 			best = MIN(best, total);
 			worst = MAX(worst, total);
 		}
-	} while (next(order, g.n));
+	} while (nextperm(order, g.n));
 	if (best == LLONG_MAX)
 		die("no route visits every city");
 	if (printf("%lld\n%lld\n", best, worst) < 0)
