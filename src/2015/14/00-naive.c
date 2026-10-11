@@ -1,39 +1,94 @@
 /* 2015 day 14, 00 naive: https://adventofcode.com/2015/day/14
  *
- * approach: simulate each reindeer flying or resting each race second,
- *           then take the greatest distance after 2503 seconds.
- * cost: time O(n*t), memory O(1), one input pass; t = 2503 seconds
+ * approach: simulate flying and resting each second; award a point to
+ *           every reindeer tied for the lead after all have moved.
+ * cost: time O(n*t), memory O(n), two input passes; t = 2503 seconds
  * trade: directly follow the race rules instead of skipping whole cycles
  */
+#include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "aoc.h"
+
+typedef struct {
+	int speed, fly, rest, distance, points;
+} Reindeer;
+
+static int number(char **p);
+static void race(Reindeer *deer, size_t n);
+
+static int
+number(char **p)
+{
+	long value;
+
+	while (**p && (**p < '0' || **p > '9'))
+		(*p)++;
+	if (!**p)
+		die("missing reindeer number");
+	errno = 0;
+	value = strtol(*p, p, 10);
+	if (errno || value > INT_MAX)
+		die("invalid reindeer number");
+	return (int)value;
+}
+
+static void
+race(Reindeer *deer, size_t n)
+{
+	size_t i;
+	int t, lead;
+
+	for (t = 0; n && t < 2503; t++) {
+		lead = 0;
+		for (i = 0; i < n; i++) {
+			if (t % (deer[i].fly + deer[i].rest) < deer[i].fly)
+				deer[i].distance += deer[i].speed;
+			if (deer[i].distance > lead)
+				lead = deer[i].distance;
+		}
+		for (i = 0; i < n; i++)
+			if (deer[i].distance == lead)
+				deer[i].points++;
+	}
+}
 
 int
 main(void)
 {
-	char *in, *p;
-	size_t len;
-	int speed, fly, rest, used, t, distance, best = 0;
+	Reindeer *deer;
+	char *in, *p, *line, *save;
+	size_t len, capacity = 1, n = 0, i;
+	int distance = 0, points = 0;
 
 	in = slurp(stdin, &len);
-	for (p = in; *p; p += used) {
-		if (sscanf(p,
-		           "%*s can fly %d km/s for %d seconds, but then must "
-		           "rest for %d seconds. %n",
-		           &speed, &fly, &rest, &used) != 3 ||
-		    speed < 0 || fly <= 0 || rest <= 0)
-			die("invalid reindeer");
-		distance = 0;
-		for (t = 0; t < 2503; t++)
-			if (t % (fly + rest) < fly)
-				distance += speed;
-		if (distance > best)
-			best = distance;
+	for (p = in; *p; p++)
+		if (*p == '\n')
+			capacity++;
+	deer = ecalloc(capacity, sizeof(*deer));
+	for (line = strtok_r(in, "\n", &save); line;
+	     line = strtok_r(NULL, "\n", &save)) {
+		p = line;
+		deer[n].speed = number(&p);
+		deer[n].fly = number(&p);
+		deer[n].rest = number(&p);
+		if (!deer[n].fly || !deer[n].rest)
+			die("invalid reindeer duration");
+		n++;
 	}
-	if (printf("%d\n", best) < 0)
+	race(deer, n);
+	for (i = 0; i < n; i++) {
+		if (deer[i].distance > distance)
+			distance = deer[i].distance;
+		if (deer[i].points > points)
+			points = deer[i].points;
+	}
+	if (printf("%d\n%d\n", distance, points) < 0)
 		die("printf:");
+	free(deer);
 	free(in);
 	return EXIT_SUCCESS;
 }
