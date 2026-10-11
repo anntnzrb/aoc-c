@@ -1,6 +1,7 @@
 /* 2015 day 15, 00 naive: https://adventofcode.com/2015/day/15
  *
- * approach: enumerate all allocations of 100 teaspoons and score each recipe
+ * approach: enumerate all allocations of 100 teaspoons and score each recipe,
+ *           keeping a second maximum for recipes with exactly 500 calories
  * cost: O(n * binomial(100+n-1,n-1)) time, O(n) memory, one input pass
  * trade: exhaustive search is simple and sufficient for a few ingredients
  */
@@ -17,7 +18,8 @@ typedef struct {
 } Ingredient;
 
 static long long score(const Ingredient *in, const int *amount, size_t n);
-static long long search(const Ingredient *in, int *amount, size_t n);
+static void search(const Ingredient *in, int *amount, size_t n,
+                   long long best[2]);
 
 static long long
 score(const Ingredient *in, const int *amount, size_t n)
@@ -34,17 +36,22 @@ score(const Ingredient *in, const int *amount, size_t n)
 	return product;
 }
 
-static long long
-search(const Ingredient *in, int *amount, size_t n)
+static void
+search(const Ingredient *in, int *amount, size_t n, long long best[2])
 {
-	long long best = 0, value;
+	long long value, calories;
 	int left;
 	size_t at, i;
 
 	amount[n - 1] = 100;
 	for (;;) {
 		value = score(in, amount, n);
-		best = MAX(best, value);
+		best[0] = MAX(best[0], value);
+		calories = 0;
+		for (i = 0; i < n; i++)
+			calories += amount[i] * in[i].prop[4];
+		if (calories == 500)
+			best[1] = MAX(best[1], value);
 		/* Carry the rightmost movable teaspoon to the previous slot.
 		 */
 		left = amount[n - 1];
@@ -58,7 +65,6 @@ search(const Ingredient *in, int *amount, size_t n)
 			amount[i] = 0;
 		amount[n - 1] = left - 1;
 	}
-	return best;
 }
 
 int
@@ -69,7 +75,7 @@ main(void)
 	const char *p;
 	int *amount;
 	size_t len, n = 0, j;
-	long long best = 0;
+	long long best[2] = {0};
 
 	text = slurp(stdin, &len);
 	for (line = strtok_r(text, "\n", &save); line;
@@ -90,8 +96,8 @@ main(void)
 	}
 	amount = ecalloc(n, sizeof(*amount));
 	if (n)
-		best = search(in, amount, n);
-	if (printf("%lld\n", best) < 0)
+		search(in, amount, n, best);
+	if (printf("%lld\n%lld\n", best[0], best[1]) < 0)
 		die("printf:");
 	free(amount);
 	free(in);
