@@ -1,7 +1,7 @@
 /* 2015 day 10, 00 naive: https://adventofcode.com/2015/day/10
  *
- * approach: replace each run with its count and digit, forty times
- * cost: time O(sum of round lengths), memory O(max round length), 40 passes
+ * approach: replace each run with its count and digit, fifty times
+ * cost: time O(sum of round lengths), memory O(max round length), 50 passes
  * trade: materialize every intermediate sequence for a direct simulation
  */
 #include <stdio.h>
@@ -15,7 +15,7 @@ static char *step(const char *in, size_t len, size_t *outlen);
 static char *
 step(const char *in, size_t len, size_t *outlen)
 {
-	char count[3 * sizeof(size_t) + 1], *out;
+	char count[(3 * sizeof(size_t)) + 1], *out;
 	size_t i, j, n;
 	int digits;
 
@@ -40,7 +40,7 @@ int
 main(void)
 {
 	char *in, *next;
-	size_t i, len;
+	size_t i, len, part1;
 	int round;
 
 	in = slurp(stdin, &len);
@@ -49,12 +49,15 @@ main(void)
 	for (i = 0; i < len; i++)
 		if (in[i] < '0' || in[i] > '9')
 			die("expected digits");
-	for (round = 0; len && round < 40; round++) {
+	part1 = len;
+	for (round = 0; len && round < 50; round++) {
 		next = step(in, len, &len);
 		free(in);
 		in = next;
+		if (round == 39)
+			part1 = len;
 	}
-	if (printf("%zu\n", len) < 0)
+	if (printf("%zu\n%zu\n", part1, len) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
