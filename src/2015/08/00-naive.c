@@ -11,7 +11,25 @@
 
 #include "aoc.h"
 
+static size_t escape(const char *in, size_t len);
 static size_t part1(const char *in, size_t len);
+static size_t part2(const char *in, size_t len);
+
+static size_t
+escape(const char *in, size_t len)
+{
+	if (!len)
+		die("incomplete escape");
+	if (in[0] == 'x') {
+		if (len < 3 || !isxdigit((unsigned char)in[1]) ||
+		    !isxdigit((unsigned char)in[2]))
+			die("invalid hexadecimal escape");
+		return 3;
+	}
+	if (in[0] != '\\' && in[0] != '"')
+		die("invalid escape");
+	return 1;
+}
 
 static size_t
 part1(const char *in, size_t len)
@@ -28,24 +46,8 @@ part1(const char *in, size_t len)
 		if (in[i++] != '"')
 			die("expected opening quote");
 		while (i < len && in[i] != '"') {
-			if (in[i++] == '\\') {
-				if (i == len)
-					die("incomplete escape");
-				if (in[i] == 'x') {
-					if (len - i < 3 ||
-					    !isxdigit(
-					        (unsigned char)in[i + 1]) ||
-					    !isxdigit(
-					        (unsigned char)in[i + 2]))
-						die("invalid hexadecimal "
-						    "escape");
-					i += 3;
-				} else if (in[i] == '\\' || in[i] == '"') {
-					i++;
-				} else {
-					die("invalid escape");
-				}
-			}
+			if (in[i++] == '\\')
+				i += escape(in + i, len - i);
 			memory++;
 		}
 		if (i == len)
