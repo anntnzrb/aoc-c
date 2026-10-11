@@ -1,27 +1,31 @@
 /* 2015 day 20, 00 naive: https://adventofcode.com/2015/day/20
  *
- * approach: simulate each elf delivering to every multiple of its number;
- *           its own elf guarantees a house at ceil(target / 10).
- * cost: O(B log B) time, O(B) memory, one delivery pass and one search,
- *       where B = ceil(target / 10).
+ * approach: simulate elf deliveries to multiples, capped at 50 in part 2;
+ *           its own elf guarantees a house at ceil(target / rate).
+ * cost: O(B log B) time for part 1, O(50 B) for part 2, O(B) memory;
+ *       one delivery pass and one search per part, B = ceil(target / rate).
  * trade: stores the whole bounded street rather than factoring each house.
  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static size_t part1(size_t target);
+static size_t solve(size_t target, int limited);
 
 static size_t
-part1(size_t target)
+solve(size_t target, int limited)
 {
-	size_t *presents, bound, elf, house, answer;
+	size_t *presents, rate, bound, elf, house, visit, answer;
 
-	bound = target / 10 + (target % 10 != 0);
+	rate = limited ? 11 : 10;
+	bound = (target / rate) + (target % rate != 0);
 	presents = ecalloc(bound + 1, sizeof(*presents));
 	for (elf = 1; elf <= bound; elf++)
-		for (house = elf; house <= bound; house += elf)
+		for (house = elf, visit = 1;
+		     house <= bound && (!limited || visit <= 50);
+		     house += elf, visit++)
 			presents[house] += elf;
 	for (answer = 1; answer <= bound; answer++)
 		if (presents[answer] >= bound)
