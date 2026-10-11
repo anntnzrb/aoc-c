@@ -84,7 +84,7 @@ Binds every agent, including delegates; paste it into every delegated prompt.
 
 ## Solve Workflow
 
-Trigger: "solve N". Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
+Trigger: "solve N". A worker in its own worktree follows `docs/solve.md` end-to-end; the orchestrator verifies (gate, bench, independent cross-check) and merges days in order. Orchestrator runs the pipeline and checks every result; the implementer writes code from the statement, this file and a green `just test` target; helpers do mechanical work such as fixture extraction.
 
 1. `just fetch N`, `just puzzle N`, `just new N`.
 2. Write the statement's examples as fixtures; a part-1 `.out` has one line.
