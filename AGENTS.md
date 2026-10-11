@@ -131,7 +131,7 @@ Recipe arguments are day numbers. Every recipe normalizes `4`/`04` through `bin/
 
 - Subject: `<scope>: <imperative summary>`, lowercase, no period, ≤72 chars.
 - Scopes: `YYYY/DD` (`src/YYYY/dayDD.c`), `lib` (header, `lib/aoc.c`, `tests/lib.c`), `tools/<name>`, `template`, `build` (`justfile`, flake, `.clang-*`), `docs`, `repo` (`.gitignore`, `.env.example`).
-- One commit per puzzle part: `2015/01: solve part 1 by summing paren steps`, then `2015/01: solve part 2 …`. Split by hunk if both are pending.
+- One commit per puzzle part: `2015/01: solve part 1 by summing paren steps`, then `2015/01: solve part 2 …`. Commit part 1 before writing part 2: once both parts sit in one new file, the diff is a single hunk that will not split reliably.
 - Never mix two days, or a day with shared code. Shared code a day needs is committed first, in its own scoped commit with its tests.
 - Body: approach and complexity. Never include answers, input or puzzle text.
 
@@ -161,12 +161,13 @@ Steps:
 3. **Fixtures first:** write the statement's examples to `tests/YEAR/dayNN/pK-M.in` and `.out`. Part 1 fixtures get a one-line `.out`.
 4. **Solve:** the implementer writes `part1`. If it fails `just test` twice, the orchestrator solves the part itself.
 5. **Answer:** `just run N`. Cross-check against an independent quick script whenever one is cheap to write.
-6. **Submit part 1** (`just submit N 1 X` is planned). After a wrong answer, stop and diagnose; never resubmit guesses, because lockouts escalate.
+6. **Submit part 1** (`just submit N 1 X` is planned). After a wrong answer, stop and diagnose; never resubmit guesses, because lockouts escalate. Once it is accepted, run `just check` and commit part 1 (see Commit Guidelines) before touching `part2`.
 7. **Part 2:** fetch the statement again (part 2 unlocks only after part 1 is accepted), then repeat steps 3–6 with level 2.
-8. **Gate:** `just check` must exit 0.
+8. **Gate:** `just check` must exit 0, then commit part 2.
 9. **Report:** both answers, a ✓/✗ checklist, and a short note on the approach and its complexity.
 
 Lessons log:
+- 2015/01: committing both parts at once produced one commit, because the new file was a single hunk. Commit after each part.
 - 2015/01: clang-tidy rejects nested ternaries (`readability-avoid-nested-conditional-operator`). Use a `switch`.
 - tools: `readability-function-cognitive-complexity` is enforced. Split long functions early (see `child()` in `tools/fetch.c`).
 - Linux: glibc false positives exist (fortified stdio, POSIX errno macros). See Important Files and Language before adding any `-Wno-*`.
