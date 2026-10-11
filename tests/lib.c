@@ -3,12 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "aoc.h"
 
 static void test_slurp_empty(void);
 static void test_slurp_multichunk(void);
 static void test_puzzleday(void);
+static void test_nameid(void);
+static void test_nextperm(void);
 
 static void
 test_slurp_empty(void)

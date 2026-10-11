@@ -77,6 +77,45 @@ slurp(FILE *fp, size_t *len)
 	return buf;
 }
 
+size_t
+nameid(char names[][64], size_t *count, size_t capacity, const char *name)
+{
+	size_t i, len;
+
+	for (i = 0; i < *count; i++)
+		if (!strcmp(names[i], name))
+			return i;
+	len = strlen(name);
+	if (*count >= capacity || len >= sizeof(names[0]))
+		die("name table full or name too long");
+	memcpy(names[*count], name, len + 1);
+	return (*count)++;
+}
+
+int
+nextperm(size_t *order, size_t n)
+{
+	size_t i, j, tmp;
+
+	if (n < 2)
+		return 0;
+	for (i = n - 1; i > 0 && order[i - 1] >= order[i]; i--)
+		;
+	if (i == 0)
+		return 0;
+	for (j = n - 1; order[j] <= order[i - 1]; j--)
+		;
+	tmp = order[i - 1];
+	order[i - 1] = order[j];
+	order[j] = tmp;
+	for (j = n - 1; i < j; i++, j--) {
+		tmp = order[i];
+		order[i] = order[j];
+		order[j] = tmp;
+	}
+	return 1;
+}
+
 /* a plain decimal of at most 9 digits, so it cannot overflow an int */
 static int
 parsenum(const char *s, int *n)

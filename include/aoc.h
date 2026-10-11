@@ -27,6 +27,13 @@ void *ereallocarray(void *p, size_t nmemb, size_t size);
 /* read all of fp into a NUL-terminated buffer; length (sans NUL) in *len */
 char *slurp(FILE *fp, size_t *len);
 
+/* intern a name, dying if new names exceed capacity or 63 characters */
+size_t nameid(char names[][64], size_t *count, size_t capacity,
+              const char *name);
+
+/* advance index order lexicographically; return 0 at the last permutation */
+int nextperm(size_t *order, size_t n);
+
 /* parse a puzzle year and day ("4" or "04") into *year and *day;
  * NULL on success, else why they are not a valid AoC puzzle */
 const char *puzzleday(const char *ys, const char *ds, int *year, int *day);
