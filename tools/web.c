@@ -211,9 +211,9 @@ plaintext(const char *p, const char *end, char *out)
 	    "</p>", "</li>", "</pre>", "</h2>", "<br>", "<br ", "<br/",
 	};
 	static const char *const entities[] = {
-	    "&lt;", "&gt;", "&amp;", "&quot;", "&#39;",
+	    "&lt;", "&gt;", "&amp;", "&quot;", "&#39;", "&apos;",
 	};
-	static const char decoded[] = "<>&\"'";
+	static const char decoded[] = "<>&\"''";
 	const char *tag;
 	size_t i, n;
 
