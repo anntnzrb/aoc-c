@@ -11,11 +11,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "aoc.h"
 #include "util.h"
 
+static void clean(const char *root, const char *pat);
 static int build(const char *root, char *src, int argc, char **args);
+
+/* drop every earlier output of the selected days, so a deleted or renamed
+ * solution cannot linger in bin/ and get tested or benched by mistake */
+static void
+clean(const char *root, const char *pat)
+{
+	glob_t g;
+	char *outs;
+	size_t i, n;
+
+	outs = pat ? smprintf("%s/%.*s*", root, (int)strlen(pat) - 7, pat + 4)
+	           : smprintf("%s/[0-9][0-9][0-9][0-9]/[0-9][0-9]/*", root);
+	n = xglob(outs, &g);
+	for (i = 0; i < n; i++)
+		if (unlink(g.gl_pathv[i]) < 0)
+			die("build: unlink %s:", g.gl_pathv[i]);
+	globfree(&g);
+	free(outs);
+}
 
 /* src/YEAR/DD/NN-slug.c -> ROOT/YEAR/DD/NN-slug */
 static int
@@ -64,6 +85,7 @@ main(int argc, char *argv[])
 		pat = smprintf("src/%d/%02d/*.c", year, day);
 	if (!(n = xglob(pat, &g)) && !all)
 		die("build: no solutions match %s", pat);
+	clean(argv[1], all ? NULL : pat);
 	for (i = 0; i < n; i++)
 		failed |= build(argv[1], g.gl_pathv[i], argc - 4, argv + 4);
 	globfree(&g);
