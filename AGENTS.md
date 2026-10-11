@@ -18,7 +18,7 @@ Advent of Code, every year from 2015, in C99 + POSIX.1-2008, [suckless style](ht
 src/YYYY/DD/NN-slug.c   solutions: 00-naive, 01-optimal, 02+ explorations
 tests/YYYY/DD/*.in|out  puzzle-example fixtures (gitignored)
 inputs/YYYY/dayDD.txt   personal inputs (gitignored, never commit)
-include/aoc.h lib/aoc.c die, ecalloc, ereallocarray, slurp, puzzleday; linked into every binary
+include/aoc.h lib/aoc.c die, ecalloc, ereallocarray, slurp, puzzleday, nameid, nextperm; linked into every binary
 tools/*.c, tools/util.* day, new, web, build, test, bench, doc; see each file's header
 templates/day.c         skeleton for `just new` (YEAR, DAY, DAYN placeholders)
 bin/YYYY/DD/            sanitized debug builds; bin/rel/YYYY/DD/ release; bin/tools/
@@ -99,4 +99,7 @@ Lessons:
 - `-fsanitize=integer` rejects shifts that discard set bits, even on unsigned values: mask before rotating a hash (2015/03).
 - Count work, not wall time: 2015/04's 4-lane MD5 batch halved wall time but ran 12% more instructions; inspect the assembly before claiming SIMD.
 - A solution must not do its real work on empty input, or `bench`'s empty-input baseline stops measuring startup alone.
+- AoC enforces a few seconds between any two submissions, even right ones: parallel workers must honor "too recently" and retry (2015/07-13).
+- Merge a worker's branch only after its run has finished: rebasing under a running worker races its next commit (2015/11).
+- Parallel days duplicate helpers; extract only what recurs and stays off hot paths (`nameid`, `nextperm` after 2015/09 and 13), and bench the 01s afterwards.
 - A per-element branch can block vectorization: 2015/01's fused loop with a basement check ran more instructions than two passes. Measure before believing "one pass".
