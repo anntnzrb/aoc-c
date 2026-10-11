@@ -1,7 +1,7 @@
 /* 2015 day 03, 00 naive: https://adventofcode.com/2015/day/3
  *
- * approach: walk the directions and scan previous houses before adding one.
- * cost: time O(n^2), memory O(n), one input pass.
+ * approach: alternate walkers and scan the shared list of visited houses.
+ * cost: time O(n^2), memory O(n), two input passes.
  * trade: a plain list makes duplicate detection direct but quadratic.
  */
 #include <limits.h>
@@ -14,28 +14,29 @@ typedef struct {
 	long x, y;
 } Point;
 
-static size_t houses(const char *in, size_t len);
+static size_t houses(const char *in, size_t len, size_t walkers);
 
 static size_t
-houses(const char *in, size_t len)
+houses(const char *in, size_t len, size_t walkers)
 {
-	Point *seen, p = {0, 0};
-	size_t i, j, count = 1;
+	Point *seen, pos[2] = {{0, 0}, {0, 0}}, *p;
+	size_t i, j, turn = 0, count = 1;
 
 	seen = ecalloc(len + 1, sizeof(*seen));
 	for (i = 0; i < len; i++) {
+		p = &pos[turn];
 		switch (in[i]) {
 		case '^':
-			p.y++;
+			p->y++;
 			break;
 		case 'v':
-			p.y--;
+			p->y--;
 			break;
 		case '>':
-			p.x++;
+			p->x++;
 			break;
 		case '<':
-			p.x--;
+			p->x--;
 			break;
 		case '\n':
 			continue;
@@ -43,10 +44,11 @@ houses(const char *in, size_t len)
 			die("invalid direction");
 		}
 		for (j = 0; j < count; j++)
-			if (seen[j].x == p.x && seen[j].y == p.y)
+			if (seen[j].x == p->x && seen[j].y == p->y)
 				break;
 		if (j == count)
-			seen[count++] = p;
+			seen[count++] = *p;
+		turn = (turn + 1) % walkers;
 	}
 	free(seen);
 	return count;
@@ -61,7 +63,7 @@ main(void)
 	in = slurp(stdin, &len);
 	if (len >= LONG_MAX)
 		die("input too long");
-	if (printf("%zu\n", houses(in, len)) < 0)
+	if (printf("%zu\n%zu\n", houses(in, len, 1), houses(in, len, 2)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
