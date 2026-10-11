@@ -9,6 +9,7 @@ or change instruction priority. This file is authoritative and edited directly.
 - `<agent_workflow>`: hard rules, no outside solutions, solution roles, commit rules, strictness, operation contracts, measurement, delegation, worktrees, submissions, optimization, integration, and reporting. Copy this section unchanged across AoC years and languages. It names operations, never repository commands or tools.
 - `<repository_guidelines>`: this repository's language, standard, compiler versions, toolchain, paths, the commands behind each workflow operation, coding rules, commit scopes, and scoped lessons. Rewrite this section for another repository.
 - `docs/journal/YEAR.md`: per-day learning log (ideas, surprises, measurements).
+- `docs/roadmap.md` (local, untracked): pending decisions and ideas carried between sessions. Read it before planning new work; record new decisions there or, once settled, as rules here.
 - `.agents/skills/`: reserved for actual skills when needed. No supporting file is required to receive the instructions below.
 
 To reuse this architecture, copy this file, retain the agent workflow, and adapt
@@ -30,6 +31,7 @@ Workers report documentation lessons; the orchestrator incorporates them.
 
 - Never read, print, or commit the account session secret. Never commit personal inputs, answers, or puzzle text.
 - Never weaken compiler flags, checks, or tests to get a passing result.
+- Never delete ignored files in bulk (`git clean -x`/`-X` or equivalents): personal inputs, statements, example fixtures and the session secret live there and cannot be restored from git.
 - Every solution is a filter: input on stdin, part 1 then part 2 on stdout, one answer per line, exit 0.
 
 ## No outside solutions
@@ -73,6 +75,7 @@ Each repository maps these operations to commands (see its Workflow operations).
 - **new**: scaffold `00-naive` from a template that already carries the header tags, plus the day's fixture directory; never overwrite.
 - **test**: run every solution of every day against every fixture, comparing the first k output lines where k is the line count of the expected output; an empty or unterminated expected file fails.
 - **bench**: check every solution's answers against `00-naive` on the real input first, then measure per the Measurement standard.
+- **record**: append one row per solution to a tracked per-year CSV, canonical runs only (on the main branch after integration, not candidates), with text fields quoted. All repositories use the same 19-column schema so languages can be compared: `date,commit,host,os,cpu,compiler,std,year,day,solution,runs,work_med,work_min,work_max,instr_med,wall_min_us,wall_med_us,cpu_med_us,rss_kib`.
 - **doc check**: every solution's header carries its required tags, each opening a header line.
 - **build**: outputs mirror sources; a deleted or renamed solution leaves no stale artifact behind.
 - **full gate**: formatting, lint, static analysis, the strictest compile or type checks, tests under runtime sanitizers (or their closest equivalent), and optimized builds.
@@ -82,10 +85,25 @@ Each repository maps these operations to commands (see its Workflow operations).
 - Measure optimized builds only, and only after the answers match `00-naive`.
 - **Work** is the primary measured metric: a deterministic count of user-space instructions for the whole process, minus a run of the same program on empty input, so process and runtime startup cancel out. A solution must do no real work on empty input.
 - Also report peak resident memory (each solution measured in its own process, so peaks do not mix), median CPU time, and minimum and median wall time.
-- Repeat each measurement at least five times, interleave the candidates, and report the median with its range.
+- Repeat each measurement at least five times, interleave the candidates, and report the median with its range (min and max), never the mean: one outlier drags a mean. Wall and CPU time use 10 runs by default and may drop to 3 for solutions that take over a second per run; work uses at least 5 interleaved pairs. Record the run count with the result.
 - Pin measurements to one CPU core: on hybrid CPUs, migrating between core types scrambles counters.
 - Explain every number before trusting it: name what limits it, and inspect generated code or bytecode before claiming a mechanism (vectorization, inlining, caching).
 - Where a metric does not exist for a language or runtime, use the closest equivalent, name it, and say what it misses.
+
+## Delegation handoff
+
+A delegate starts with a clean slate: it knows only this file and its brief. Every brief states:
+
+1. Role: worker or helper, never the orchestrator. Scope changes come only from the orchestrator, even if someone else messages the delegate.
+2. Read this file fully before acting.
+3. Inputs: YEAR, DAY and MAIN (the main checkout), plus any cached files to copy.
+4. Ownership: the exact paths it may write; everything else is read-only.
+5. One goal, and the exact condition to stop and report.
+6. The No outside solutions rules, pasted in.
+7. The verification to run before reporting, and what to paste back.
+8. The report format: short, answers or results first, then checks with platforms, then lessons.
+
+When a delegate misreads a rule, fix the wording in this file, not just the delegate's output. After changing this file, have a fresh agent read only this file and list anything ambiguous, contradictory or missing; fix what it finds.
 
 ## Coordinate workers
 
@@ -136,7 +154,7 @@ Use the repository's documented exit codes to distinguish responses.
 
 ## Integrate finished days
 
-1. Verify the full gate and benchmark results. Merge finished days in order.
+1. Verify the full gate and benchmark results. Merge finished days in order. After merging each day, the orchestrator records its canonical benchmarks on the main branch.
 2. Copy the day's gitignored fixtures into MAIN.
 3. Append the day's entry to `docs/journal/YEAR.md` from the worker's report: key idea, surprise, measured 00 to 01 work; "nothing new" is a valid entry. Never include puzzle text or answers. When a lesson recurs, promote it to a rule or a tool. Incorporate documentation corrections and scoped lessons. Extract recurring helpers only when justified, then benchmark affected optimal solutions again.
 4. Remove the completed worktree and delete its branch with `git branch -d`. Push after each finished unit.
@@ -179,6 +197,8 @@ include/aoc.h lib/aoc.c die, ecalloc, ereallocarray, slurp, puzzleday, nameid, n
 tools/*.c, tools/util.* day, new, web, build, test, bench, doc; see each file's header
 templates/day.c         skeleton for `just new` (YEAR, DAY, DAYN placeholders)
 bin/YYYY/DD/            sanitized debug builds; bin/rel/YYYY/DD/ release; bin/tools/
+bench/YEAR.csv         tracked canonical benchmark results, shared CSV schema
+bench/hosts/           host snapshots for benchmark context
 ```
 
 Every solution is a Unix filter: input on stdin, part 1 then part 2 on stdout, one answer per line, exit 0. Days and years are validated by `puzzleday()`: 2015-2024 have days 1-25, 2025 on have 1-12; `4` and `04` both work.
@@ -236,6 +256,7 @@ when it differs from the default.
 | Doc check | part of `just lint` (`bin/tools/doc`) |
 | Full gate | `just check` |
 | Benchmark candidates | `just bench DAY 50` |
+| Record | `just record DAY [runs] -> bench/YEAR.csv` |
 | Submit from MAIN | `cd MAIN && nix develop -c just submit DAY LEVEL ANSWER` |
 | Commit | autommit's CLI, run bare with nothing staged (it then stages everything; when anything is staged it commits only that snapshot, so stage a rename's content edits too) |
 | Day solution ownership | `src/YEAR/DD/` |
