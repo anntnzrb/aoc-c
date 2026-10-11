@@ -93,10 +93,10 @@ parse(char *in, size_t *count)
 }
 
 static long long
-run(const Instruction *code, size_t count)
+run(const Instruction *code, size_t count, long long a)
 {
 	const Instruction *ins;
-	long long reg[2] = {0, 0}, pc = 0, step;
+	long long reg[2] = {a, 0}, pc = 0, step;
 
 	while (pc >= 0 && pc < (long long)count) {
 		ins = &code[pc];
@@ -126,7 +126,8 @@ main(void)
 
 	in = slurp(stdin, &len);
 	code = parse(in, &count);
-	if (printf("%lld\n", run(code, count)) < 0)
+	if (printf("%lld\n%lld\n", run(code, count, 0), run(code, count, 1)) <
+	    0)
 		die("printf:");
 	free(code);
 	free(in);
