@@ -1,11 +1,14 @@
 /* 2015 day 13, 00 naive: https://adventofcode.com/2015/day/13
  *
  * approach: fix one guest, try every order of the others, and sum both
- * peoples happiness on every circular neighbor pair.
+ * peoples happiness on every circular neighbor pair. For part 2, add
+ * a guest with zero happiness in both directions and repeat the search.
  * cost: O(n * (n-1)!) time, O(n^2) memory, one input pass
  * trade: exhaustive permutations keep the first solution straightforward;
- * guest names are at most 63 characters, with at most 32 guests.
+ * guest names are at most 63 characters, with at most 32 input guests plus
+ * ourselves.
  */
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,13 +20,13 @@
 
 typedef struct {
 	char names[GUESTS][64];
-	long long happiness[GUESTS][GUESTS];
+	long long happiness[GUESTS + 1][GUESTS + 1];
 	size_t count;
 } Table;
 
 static size_t guest(Table *table, const char *name);
-static long long arrange(const Table *table, size_t *order, int *used,
-                         size_t depth);
+static int next(size_t *order, size_t count);
+static long long arrange(const Table *table);
 
 static size_t
 guest(Table *table, const char *name)
@@ -40,13 +43,39 @@ guest(Table *table, const char *name)
 	return i;
 }
 
-static long long
-arrange(const Table *table, size_t *order, int *used, size_t depth)
+static int
+next(size_t *order, size_t count)
 {
-	long long best, total;
-	size_t i, a, b;
+	size_t i, j, tmp;
 
-	if (depth == table->count) {
+	i = count - 1;
+	while (i && order[i - 1] >= order[i])
+		i--;
+	if (!i)
+		return 0;
+	j = count - 1;
+	while (order[j] <= order[i - 1])
+		j--;
+	tmp = order[i - 1];
+	order[i - 1] = order[j];
+	order[j] = tmp;
+	for (j = count - 1; i < j; i++, j--) {
+		tmp = order[i];
+		order[i] = order[j];
+		order[j] = tmp;
+	}
+	return 1;
+}
+
+static long long
+arrange(const Table *table)
+{
+	long long best = LLONG_MIN, total;
+	size_t i, a, b, order[GUESTS + 1];
+
+	for (i = 0; i < table->count; i++)
+		order[i] = i;
+	do {
 		total = 0;
 		for (i = 0; i < table->count; i++) {
 			a = order[i];
@@ -54,18 +83,8 @@ arrange(const Table *table, size_t *order, int *used, size_t depth)
 			total +=
 			    table->happiness[a][b] + table->happiness[b][a];
 		}
-		return total;
-	}
-	best = LLONG_MIN;
-	for (i = 1; i < table->count; i++) {
-		if (used[i])
-			continue;
-		used[i] = 1;
-		order[depth] = i;
-		total = arrange(table, order, used, depth + 1);
 		best = MAX(best, total);
-		used[i] = 0;
-	}
+	} while (next(order + 1, table->count - 1));
 	return best;
 }
 
@@ -73,26 +92,29 @@ int
 main(void)
 {
 	Table table = {0};
-	char *line = NULL;
-	char from[64], to[64], sign[5];
-	size_t capacity = 0, a, b, order[GUESTS] = {0};
-	int amount, end, used[GUESTS] = {0};
-	long long answer = 0;
+	char *line = NULL, *end;
+	char from[64], to[64], sign[5], number[32], extra;
+	size_t capacity = 0, a, b;
+	long amount;
+	long long answer1 = 0, answer2 = 0;
 
 	while (getline(&line, &capacity, stdin) != -1) {
-		end = 0;
-		if (sscanf(
-		        line,
-		        "%63s would %4s %d happiness units by sitting next to "
-		        "%63[^.]. %n",
-		        from, sign, &amount, to, &end) != 4 ||
-		    !end || line[end] || amount < 0 ||
-		    (strcmp(sign, "gain") && strcmp(sign, "lose")))
+		if (sscanf(line,
+		           "%63s would %4s %31s happiness units by sitting "
+		           "next to "
+		           "%63[^.]. %c",
+		           from, sign, number, to, &extra) != 4 ||
+		    (strcmp(sign, "gain") != 0 && strcmp(sign, "lose") != 0))
 			die("invalid happiness statement");
+		errno = 0;
+		amount = strtol(number, &end, 10);
+		if (errno || end == number || *end || amount < 0 ||
+		    amount > INT_MAX)
+			die("invalid happiness amount");
 		a = guest(&table, from);
 		b = guest(&table, to);
 		table.happiness[a][b] =
-		    !strcmp(sign, "lose") ? -(long long)amount : amount;
+		    !strcmp(sign, "lose") ? -amount : amount;
 	}
 	if (ferror(stdin))
 		die("getline:");
