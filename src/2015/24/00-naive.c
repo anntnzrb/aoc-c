@@ -2,7 +2,7 @@
  *
  * approach: enumerate first groups by size, minimize their product, and
  * backtrack over assignments of the remaining packages to equal groups.
- * cost: time O(n * 3^n), memory O(n), one input pass.
+ * cost: time O(n * g^n) for g groups, memory O(n), one input pass.
  * trade: exhaustive search with explicit stacks and sum/product pruning.
  */
 #include <ctype.h>
@@ -19,8 +19,8 @@ typedef struct {
 } Frame;
 
 static int partition(unsigned long long mask, int groups);
-static void first(int count, unsigned long long mask);
-static unsigned long long solve(void);
+static void first(int count, unsigned long long mask, int groups);
+static unsigned long long solve(int sum, int groups);
 
 static int weights[63], n, target;
 static unsigned long long best;
@@ -28,7 +28,7 @@ static unsigned long long best;
 static int
 partition(unsigned long long mask, int groups)
 {
-	int packages[63], choices[63] = {0}, sums[2] = {0};
+	int packages[63], choices[63] = {0}, sums[3] = {0};
 	int count, i, group;
 
 	count = 0;
@@ -55,7 +55,7 @@ partition(unsigned long long mask, int groups)
 }
 
 static void
-first(int count, unsigned long long mask)
+first(int count, unsigned long long mask, int groups)
 {
 	Frame stack[64], *frame;
 	int depth, i;
@@ -66,7 +66,7 @@ first(int count, unsigned long long mask)
 		frame = &stack[depth];
 		if (!frame->left) {
 			if (frame->sum == target && frame->product < best &&
-			    partition(mask ^ frame->chosen, 2))
+			    partition(mask ^ frame->chosen, groups - 1))
 				best = frame->product;
 			depth--;
 			continue;
@@ -86,15 +86,18 @@ first(int count, unsigned long long mask)
 }
 
 static unsigned long long
-solve(void)
+solve(int sum, int groups)
 {
 	unsigned long long mask;
 	int count;
 
+	if (sum % groups)
+		die("total weight is not divisible by group count");
+	target = sum / groups;
 	mask = (1ULL << n) - 1;
 	for (count = 1; count <= n; count++) {
 		best = ULLONG_MAX;
-		first(count, mask);
+		first(count, mask, groups);
 		if (best != ULLONG_MAX)
 			return best;
 	}
@@ -105,6 +108,7 @@ int
 main(void)
 {
 	char *in, *p, *end;
+	unsigned long long part1, part2;
 	long value;
 	size_t len;
 	int sum;
@@ -129,10 +133,9 @@ main(void)
 	free(in);
 	if (!n)
 		return EXIT_SUCCESS;
-	if (sum % 3)
-		die("total weight is not divisible by three");
-	target = sum / 3;
-	if (printf("%llu\n", solve()) < 0)
+	part1 = solve(sum, 3);
+	part2 = solve(sum, 4);
+	if (printf("%llu\n%llu\n", part1, part2) < 0)
 		die("write answer:");
 	return EXIT_SUCCESS;
 }
