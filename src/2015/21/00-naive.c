@@ -96,44 +96,41 @@ wins(int hp, int damage, int armor, int attack, int defense)
 int
 main(void)
 {
-	char *in;
-	size_t len, w, a, r;
+	char *in, *p;
+	Item item;
+	size_t len, w, a;
 	unsigned int mask;
-	int hp, damage, armor, cost, attack, defense, count, best = INT_MAX;
+	int hp, damage, armor, best = INT_MAX, worst = 0;
 
 	in = slurp(stdin, &len);
 	if (!len) {
 		free(in);
 		return EXIT_SUCCESS;
 	}
-	if (sscanf(in, "Hit Points: %d\nDamage: %d\nArmor: %d", &hp, &damage,
-	           &armor) != 3 ||
-	    hp <= 0 || damage < 0 || armor < 0)
-		die("invalid boss stats");
+	p = in;
+	hp = stat(&p, "Hit Points: ");
+	damage = stat(&p, "Damage: ");
+	armor = stat(&p, "Armor: ");
+	if (!hp)
+		die("boss hit points must be positive");
 	free(in);
 	for (w = 0; w < sizeof weapons / sizeof *weapons; w++)
 		for (a = 0; a < sizeof armors / sizeof *armors; a++)
 			for (mask = 0; mask < 64; mask++) {
-				cost = weapons[w].cost + armors[a].cost;
-				attack = weapons[w].damage;
-				defense = armors[a].armor;
-				count = 0;
-				for (r = 0; r < sizeof rings / sizeof *rings;
-				     r++)
-					if (mask & (1U << r)) {
-						count++;
-						cost += rings[r].cost;
-						attack += rings[r].damage;
-						defense += rings[r].armor;
-					}
-				if (count <= 2 &&
-				    wins(hp, damage, armor, attack, defense) &&
-				    cost < best)
-					best = cost;
+				item = loadout(w, a, mask);
+				if (item.cost < 0)
+					continue;
+				if (wins(hp, damage, armor, item.damage,
+				         item.armor)) {
+					if (item.cost < best)
+						best = item.cost;
+				} else if (item.cost > worst) {
+					worst = item.cost;
+				}
 			}
 	if (best == INT_MAX)
 		die("no winning loadout");
-	if (printf("%d\n", best) < 0)
+	if (printf("%d\n%d\n", best, worst) < 0)
 		die("printf:");
 	return EXIT_SUCCESS;
 }
