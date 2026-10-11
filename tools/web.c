@@ -8,7 +8,8 @@
  * Inputs are cached; statements always refetch and keep only article contents,
  * stripping the page's past answers. Both files are replaced atomically.
  * Submission levels are 1 or 2; answers must match [0-9A-Za-z,-]+.
- * Submit exits 0 for right, 1 for wrong, 2 for any other response.
+ * Submit exits 0 for right, 1 for wrong, 2 for cooldown/already complete,
+ * and 3 for unknown responses.
  * curl(1) speaks TLS and sqlite3(1) reads the cookie database.
  */
 #include <ctype.h>
@@ -319,7 +320,7 @@ main(int argc, char *argv[])
 {
 	char *url, *body, *post;
 	const char *err;
-	int year, day, submit, rc = 2;
+	int year, day, submit, rc = 3;
 
 	if (argc < 4 ||
 	    (strcmp(argv[1], "input") != 0 && strcmp(argv[1], "puzzle") != 0 &&
@@ -353,6 +354,9 @@ main(int argc, char *argv[])
 		rc = 0;
 	else if (strstr(body, "That's not the right answer"))
 		rc = 1;
+	else if (strstr(body, "You gave an answer too recently") ||
+	         strstr(body, "You don't seem to be solving the right level"))
+		rc = 2;
 	free(body);
 	free(post);
 	free(url);
