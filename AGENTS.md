@@ -97,4 +97,6 @@ Lessons:
 - autommit commits only the staged snapshot when anything is staged: after `git mv`, run `git add -A` first or the content edits stay behind (2015/02's `web` rename landed as two runs).
 - On an account that already solved a day, `just submit` only answers "already complete" and verifies nothing; rely on the 00 oracle plus an independent cross-check (awk, for example).
 - `-fsanitize=integer` rejects shifts that discard set bits, even on unsigned values: mask before rotating a hash (2015/03).
+- Count work, not wall time: 2015/04's 4-lane MD5 batch halved wall time but ran 12% more instructions; inspect the assembly before claiming SIMD.
+- A solution must not do its real work on empty input, or `bench`'s empty-input baseline stops measuring startup alone.
 - A per-element branch can block vectorization: 2015/01's fused loop with a basement check ran more instructions than two passes. Measure before believing "one pass".
