@@ -7,6 +7,7 @@ The contract for a worker that solves one day end-to-end in its own git worktree
 - **No Outside Solutions** (`AGENTS.md`): reason from the statement only, never search for or read solutions, never use a remembered answer.
 - Write only `src/YEAR/DD/` and `tests/YEAR/DD/`. If lib, tools, the template or the justfile need a change, stop and report it instead.
 - Never edit `AGENTS.md`: put lessons in the report. Never submit answers, never read `.env`.
+- Do not load generic Advent of Code or competitive-programming skills: `AGENTS.md` and this brief are the only source of truth for this repo.
 
 ## Steps
 
