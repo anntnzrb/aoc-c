@@ -1,10 +1,10 @@
 /* 2015 day 06, 00 naive: https://adventofcode.com/2015/day/6
  *
- * approach: start with a dark grid, apply each instruction to every light
- * in its inclusive rectangle, then count the lit cells.
- * cost: O(N + A + G) time, O(N + G) memory, one input pass and one grid
- * scan; N input bytes, A total rectangle area, G = 1000 * 1000 cells
- * trade: byte-per-light simulation follows the instructions directly
+ * approach: apply each rectangle to a dark grid, then count lit cells.
+ * Repeat for brightness: decrement to a floor of zero; toggle adds two.
+ * cost: O(N + A + G) time, O(N + G) memory, two input and grid passes;
+ * N input bytes, A total rectangle area, G = 1000 * 1000 cells
+ * trade: one integer per light; simulation follows instructions directly
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +13,8 @@
 #include "aoc.h"
 
 static unsigned int coordinate(const char **p, const char *suffix);
-static unsigned int part1(const char *in);
+static void apply(unsigned int *cell, int op, int brightness);
+static unsigned long long solve(const char *in, int brightness);
 
 static unsigned int
 coordinate(const char **p, const char *suffix)
@@ -37,12 +38,27 @@ coordinate(const char **p, const char *suffix)
 	return n;
 }
 
-static unsigned int
-part1(const char *in)
+static void
+apply(unsigned int *cell, int op, int brightness)
+{
+	if (brightness) {
+		if (op == 0)
+			*cell -= *cell > 0;
+		else
+			*cell += (unsigned int)op;
+	} else if (op == 2)
+		*cell ^= 1;
+	else
+		*cell = (unsigned int)op;
+}
+
+static unsigned long long
+solve(const char *in, int brightness)
 {
 	const char *p;
-	unsigned char *lights, *cell;
-	unsigned int x1, y1, x2, y2, x, y, count;
+	unsigned int *lights;
+	unsigned int x1, y1, x2, y2, x, y;
+	unsigned long long count;
 	size_t i;
 	int op;
 
@@ -68,13 +84,8 @@ part1(const char *in)
 		if ((*p && *p != '\n') || x1 > x2 || y1 > y2)
 			die("invalid rectangle");
 		for (y = y1; y <= y2; y++)
-			for (x = x1; x <= x2; x++) {
-				cell = &lights[(y * 1000) + x];
-				if (op == 2)
-					*cell ^= 1;
-				else
-					*cell = (unsigned char)op;
-			}
+			for (x = x1; x <= x2; x++)
+				apply(&lights[(y * 1000) + x], op, brightness);
 		if (*p == '\n')
 			p++;
 	}
@@ -90,12 +101,13 @@ main(void)
 {
 	char *in;
 	size_t len;
-	unsigned int count;
+	unsigned long long count, brightness;
 
 	in = slurp(stdin, &len);
-	count = part1(in);
+	count = solve(in, 0);
+	brightness = solve(in, 1);
 	free(in);
-	if (printf("%u\n", count) < 0)
+	if (printf("%llu\n%llu\n", count, brightness) < 0)
 		die("printf:");
 	return EXIT_SUCCESS;
 }
