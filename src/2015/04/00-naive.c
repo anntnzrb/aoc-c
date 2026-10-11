@@ -1,10 +1,10 @@
 /* 2015 day 04, 00 naive: https://adventofcode.com/2015/day/4
  *
  * approach: append each positive decimal integer and compute RFC 1321 MD5;
- *           stop at the first digest whose first five hex digits are zero.
- * cost: time O(N * (k + log N)), memory O(k + log N), one input pass;
- *       N is the first matching integer and k is the key length.
- * trade: recompute the full padded hash for every candidate, in order.
+ *           stop at the first digest whose first five or six hex digits are
+ * zero. cost: time O(N * (k + log N)), memory O(k + log N), one input pass; N
+ * is the larger matching integer and k is the key length. trade: recompute the
+ * full padded hash for every candidate, in order.
  */
 #include <inttypes.h>
 #include <stdint.h>
@@ -15,7 +15,7 @@
 #include "aoc.h"
 
 static void md5(char *message, size_t len, uint32_t digest[4]);
-static uint64_t part1(const char *in, size_t len);
+static uint64_t mine(const char *in, size_t len, uint32_t mask);
 
 static void
 md5(char *message, size_t len, uint32_t digest[4])
@@ -100,7 +100,7 @@ md5(char *message, size_t len, uint32_t digest[4])
 }
 
 static uint64_t
-part1(const char *in, size_t len)
+mine(const char *in, size_t len, uint32_t mask)
 {
 	char *message;
 	uint32_t digest[4];
@@ -118,7 +118,7 @@ part1(const char *in, size_t len)
 		md5(message, len + (size_t)digits, digest);
 		/* MD5 emits each word little-endian: bytes 0, 1, then a
 		 * nibble. */
-		if ((digest[0] & 0x00f0ffff) == 0)
+		if ((digest[0] & mask) == 0)
 			break;
 		if (n == UINT64_MAX)
 			die("candidate overflow");
@@ -132,13 +132,20 @@ main(void)
 {
 	char *in;
 	size_t len;
+	uint64_t p1, p2;
 
 	in = slurp(stdin, &len);
 	if (len && in[len - 1] == '\n')
 		len--;
 	if (len && in[len - 1] == '\r')
 		len--;
-	if (printf("%" PRIu64 "\n", part1(in, len)) < 0)
+	if (!len) {
+		free(in);
+		return EXIT_SUCCESS;
+	}
+	p1 = mine(in, len, 0x00f0ffff);
+	p2 = mine(in, len, 0x00ffffff);
+	if (printf("%" PRIu64 "\n%" PRIu64 "\n", p1, p2) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
