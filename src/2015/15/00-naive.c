@@ -7,6 +7,7 @@
  */
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,15 +20,20 @@ typedef struct {
 } Ingredient;
 
 static long long
+magnitude(long long value)
+{
+	if (value < -LLONG_MAX / 300 || value > LLONG_MAX / 300)
+		die("property out of range");
+	return value < 0 ? -value : value;
+}
+
+static long long
 total(const Ingredient *in, const int *amount, size_t n, size_t property)
 {
 	long long sum = 0;
-	for (size_t i = 0; i < n; i++) {
-		long long value;
-		if (ckd_mul(&value, amount[i], in[i].prop[property]) ||
-		    ckd_add(&sum, sum, value))
-			die("property overflow");
-	}
+	/* Amounts sum to 100; parsed absolute property bounds fit. */
+	for (size_t i = 0; i < n; i++)
+		sum += amount[i] * in[i].prop[property];
 	return sum;
 }
 
@@ -37,8 +43,7 @@ score(const Ingredient *in, const int *amount, size_t n)
 	long long product = 1;
 	for (size_t j = 0; j < 4; j++) {
 		long long sum = total(in, amount, n, j);
-		if (ckd_mul(&product, product, MAX(sum, 0)))
-			die("score overflow");
+		product *= MAX(sum, 0);
 	}
 	return product;
 }
@@ -72,6 +77,7 @@ int
 main(void)
 {
 	Ingredient *in = NULL;
+	long long limit[5] = {};
 	size_t len;
 	char *text = slurp(stdin, &len), *save;
 	size_t n = 0;
@@ -89,10 +95,17 @@ main(void)
 			in[n].prop[j] = strtoll(p, &end, 10);
 			if (p == end || errno)
 				die("invalid property");
+			long long value = magnitude(in[n].prop[j]);
+			limit[j] = MAX(limit[j], value);
 			p = end;
 		}
 		n++;
 	}
+	/* Every property is bounded by 100*limit; all score prefixes fit. */
+	long long bound = 1;
+	for (size_t j = 0; j < 4; j++)
+		if (ckd_mul(&bound, bound, limit[j] * 100))
+			die("score bound overflow");
 	int *amount = ecalloc(n, sizeof(*amount));
 	long long best[2] = {};
 	if (n)
