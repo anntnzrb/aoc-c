@@ -19,7 +19,7 @@
 
 #include "aoc.h"
 
-#define LITERAL (SIZE_MAX / 2 + 1)
+static constexpr size_t LITERAL = SIZE_MAX / 2 + 1;
 
 typedef enum { UNSET, COPY, NOT, AND, OR, LEFT, RIGHT } Op;
 typedef struct {
@@ -34,28 +34,17 @@ typedef struct {
 	size_t *order, cap, count;
 } Circuit;
 
-static size_t intern(Circuit *c, char *name);
-static size_t operand(Circuit *c, char *word);
-static char *token(char **cursor);
-static void parse(Circuit *c, char *line);
-static unsigned int apply(Op op, unsigned int left, unsigned int right);
-static unsigned int cached(const Circuit *c, size_t id);
-static size_t dependency(const Circuit *c, const Gate *g);
-static unsigned int evaluate(Circuit *c, size_t id);
-
 static size_t
 intern(Circuit *c, char *name)
 {
-	const char *p;
 	unsigned int hash = 0;
-	size_t id;
 
-	for (p = name; *p; p++) {
+	for (const char *p = name; *p; p++) {
 		if (*p < 'a' || *p > 'z')
 			die("invalid wire name");
 		hash = ((hash & 0x07ffffffU) << 5) ^ hash ^ (unsigned char)*p;
 	}
-	id = hash & (c->cap - 1);
+	size_t id = hash & (c->cap - 1);
 	while (c->gates[id].name && strcmp(c->gates[id].name, name) != 0)
 		id = (id + 1) & (c->cap - 1);
 	c->gates[id].name = name;
@@ -65,12 +54,10 @@ intern(Circuit *c, char *name)
 static size_t
 operand(Circuit *c, char *word)
 {
-	char *end;
-	unsigned long value;
-
 	if (word[0] < '0' || word[0] > '9')
 		return intern(c, word);
-	value = strtoul(word, &end, 10);
+	char *end;
+	unsigned long value = strtoul(word, &end, 10);
 	if (*end || value > 65535)
 		die("invalid signal");
 	return LITERAL | value;
@@ -79,11 +66,11 @@ operand(Circuit *c, char *word)
 static char *
 token(char **cursor)
 {
-	char *p = *cursor, *start;
+	char *p = *cursor;
 
 	while (*p == ' ' || *p == '\t' || *p == '\r')
 		p++;
-	start = p;
+	char *start = p;
 	while (*p && *p != ' ' && *p != '\t' && *p != '\r')
 		p++;
 	if (*p)
@@ -95,7 +82,6 @@ token(char **cursor)
 static void
 parse(Circuit *c, char *line)
 {
-	Gate *g;
 	char *words[5], *word;
 	size_t n = 0;
 
@@ -103,26 +89,26 @@ parse(Circuit *c, char *line)
 		words[n++] = word;
 	if (word || n < 3 || strcmp(words[n - 2], "->") != 0)
 		die("invalid instruction");
-	g = &c->gates[intern(c, words[n - 1])];
+	Gate *g = &c->gates[intern(c, words[n - 1])];
 	if (g->op != UNSET)
 		die("duplicate wire source");
 	g->right = LITERAL;
 	if (n == 3) {
 		g->op = COPY;
 		g->left = operand(c, words[0]);
-	} else if (n == 4 && !strcmp(words[0], "NOT")) {
+	} else if (n == 4 && strcmp(words[0], "NOT") == 0) {
 		g->op = NOT;
 		g->left = operand(c, words[1]);
 	} else if (n == 5) {
 		g->left = operand(c, words[0]);
 		g->right = operand(c, words[2]);
-		if (!strcmp(words[1], "AND"))
+		if (strcmp(words[1], "AND") == 0)
 			g->op = AND;
-		else if (!strcmp(words[1], "OR"))
+		else if (strcmp(words[1], "OR") == 0)
 			g->op = OR;
-		else if (!strcmp(words[1], "LSHIFT"))
+		else if (strcmp(words[1], "LSHIFT") == 0)
 			g->op = LEFT;
-		else if (!strcmp(words[1], "RSHIFT"))
+		else if (strcmp(words[1], "RSHIFT") == 0)
 			g->op = RIGHT;
 		else
 			die("unknown gate");
@@ -173,14 +159,13 @@ dependency(const Circuit *c, const Gate *g)
 static unsigned int
 evaluate(Circuit *c, size_t id)
 {
-	Gate *g;
-	size_t depth = 1, current, child;
+	size_t depth = 1;
 
 	/* Stack and completed order grow from opposite ends of one array. */
 	c->order[c->cap - 1] = id;
 	while (depth) {
-		current = c->order[c->cap - depth];
-		g = &c->gates[current];
+		size_t current = c->order[c->cap - depth];
+		Gate *g = &c->gates[current];
 		if (g->state == 2) {
 			depth--;
 			continue;
@@ -188,7 +173,7 @@ evaluate(Circuit *c, size_t id)
 		if (g->op == UNSET)
 			die("wire has no source");
 		g->state = 1;
-		child = dependency(c, g);
+		size_t child = dependency(c, g);
 		if (child != LITERAL) {
 			if (c->gates[child].state == 1)
 				die("cyclic circuit");

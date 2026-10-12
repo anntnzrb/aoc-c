@@ -15,20 +15,13 @@
 typedef struct {
 	char *left, *right, *op, *out;
 	unsigned int value;
-	int ready;
+	bool ready;
 } Gate;
-
-static Gate parse(char *line);
-static int operandvalue(const char *operand, const Gate *gates, size_t n,
-                        unsigned int *value);
-static int propagate(Gate *gate, const Gate *gates, size_t n);
-static unsigned int evaluate(Gate *gates, size_t n);
-static unsigned int solve(char *in, unsigned int *second);
 
 static Gate
 parse(char *line)
 {
-	Gate gate = {0};
+	Gate gate = {};
 	char *words[5], *word, *save;
 	size_t n = 0;
 
@@ -57,39 +50,36 @@ parse(char *line)
 	return gate;
 }
 
-static int
+static bool
 operandvalue(const char *operand, const Gate *gates, size_t n,
              unsigned int *value)
 {
-	char *end;
-	unsigned long literal;
-	size_t i;
-
 	if (operand[0] >= '0' && operand[0] <= '9') {
-		literal = strtoul(operand, &end, 10);
+		char *end;
+		unsigned long literal = strtoul(operand, &end, 10);
 		if (*end != '\0' || literal > 65535)
 			die("invalid signal");
 		*value = (unsigned int)literal;
-		return 1;
+		return true;
 	}
-	for (i = 0; i < n; i++) {
+	for (size_t i = 0; i < n; i++) {
 		if (strcmp(operand, gates[i].out) == 0) {
 			*value = gates[i].value;
 			return gates[i].ready;
 		}
 	}
-	return 0;
+	return false;
 }
 
-static int
+static bool
 propagate(Gate *gate, const Gate *gates, size_t n)
 {
 	unsigned int left, right = 0;
 
 	if (gate->ready || !operandvalue(gate->left, gates, n, &left))
-		return 0;
+		return false;
 	if (gate->right && !operandvalue(gate->right, gates, n, &right))
-		return 0;
+		return false;
 	if (!gate->op)
 		gate->value = left;
 	else if (strcmp(gate->op, "NOT") == 0)
@@ -104,26 +94,23 @@ propagate(Gate *gate, const Gate *gates, size_t n)
 		gate->value = right < 16 ? left >> right : 0;
 	else
 		die("unknown gate: %s", gate->op);
-	gate->ready = 1;
-	return 1;
+	gate->ready = true;
+	return true;
 }
 
 static unsigned int
 evaluate(Gate *gates, size_t n)
 {
-	Gate *gate;
-	size_t i;
-	int progress;
-
 	if (n == 0)
 		return 0;
+	bool progress;
 	do {
-		progress = 0;
-		for (i = 0; i < n; i++) {
-			gate = &gates[i];
+		progress = false;
+		for (size_t i = 0; i < n; i++) {
+			Gate *gate = &gates[i];
 			if (!propagate(gate, gates, n))
 				continue;
-			progress = 1;
+			progress = true;
 			if (strcmp(gate->out, "a") == 0)
 				return gate->value;
 		}
@@ -160,12 +147,10 @@ solve(char *in, unsigned int *second)
 int
 main(void)
 {
-	char *in;
 	size_t len;
-	unsigned int first, second;
-
-	in = slurp(stdin, &len);
-	first = solve(in, &second);
+	char *in = slurp(stdin, &len);
+	unsigned int second;
+	unsigned int first = solve(in, &second);
 	free(in);
 	if (printf("%u\n%u\n", first, second) < 0)
 		die("printf:");
