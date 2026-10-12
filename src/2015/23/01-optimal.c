@@ -23,29 +23,21 @@ typedef struct {
 	int op, reg;
 } Instruction;
 
-static Instruction decode(const char *line);
-static void fuse(Instruction *code, size_t n);
-static long long run(const Instruction *code, size_t n, long long a);
-
 static Instruction
 decode(const char *line)
 {
 	static const char *const names[] = {"hlf", "tpl", "inc",
 	                                    "jmp", "jie", "jio"};
-	Instruction ins = {1, 0, 0};
-	const char *arg;
-	char *end;
-	size_t op;
-
 	if (strlen(line) < 5 || line[3] != ' ')
 		die("invalid instruction");
-	for (op = 0; op < LEN(names); op++)
+	size_t op = 0;
+	for (; op < LEN(names); op++)
 		if (strncmp(line, names[op], 3) == 0)
 			break;
 	if (op == LEN(names))
 		die("unknown instruction");
-	ins.op = (int)op;
-	arg = line + 4;
+	Instruction ins = {1, (int)op, 0};
+	const char *arg = line + 4;
 	if (ins.op != JUMP) {
 		if (*arg != 'a' && *arg != 'b')
 			die("invalid register");
@@ -62,6 +54,7 @@ decode(const char *line)
 		arg += 2;
 	}
 	errno = 0;
+	char *end;
 	ins.offset = strtoll(arg, &end, 10);
 	if (errno || end == arg || *end || (*arg != '+' && *arg != '-'))
 		die("invalid jump offset");
@@ -74,10 +67,9 @@ fuse(Instruction *code, size_t n)
 	static const Instruction loop[] = {
 	    {8, ONE, 0}, {1, INC, 1},  {4, EVEN, 0}, {1, TRIPLE, 0},
 	    {1, INC, 0}, {2, JUMP, 0}, {1, HALF, 0}, {-7, JUMP, 0}};
-	size_t i, j;
-
-	for (i = 0; i + LEN(loop) <= n; i++) {
-		for (j = 0; j < LEN(loop); j++)
+	for (size_t i = 0; i + LEN(loop) <= n; i++) {
+		size_t j = 0;
+		for (; j < LEN(loop); j++)
 			if (code[i + j].op != loop[j].op ||
 			    code[i + j].reg != loop[j].reg ||
 			    code[i + j].offset != loop[j].offset)

@@ -18,19 +18,12 @@ typedef struct {
 	long long offset;
 } Instruction;
 
-static long long offset(const char *text);
-static Instruction instruction(const char *line);
-static Instruction *parse(char *in, size_t *count);
-static long long run(const Instruction *code, size_t count, long long a);
-
 static long long
 offset(const char *text)
 {
 	char *end;
-	long long value;
-
 	errno = 0;
-	value = strtoll(text, &end, 10);
+	long long value = strtoll(text, &end, 10);
 	if (errno || end == text || *end || (*text != '+' && *text != '-'))
 		die("invalid jump offset");
 	return value;
@@ -39,16 +32,14 @@ offset(const char *text)
 static Instruction
 instruction(const char *line)
 {
-	Instruction ins;
-	const char *arg;
-
 	if (strlen(line) < 5 || line[3] != ' ')
 		die("invalid instruction");
+	Instruction ins;
 	memcpy(ins.op, line, 3);
 	ins.op[3] = '\0';
 	ins.reg = 0;
 	ins.offset = 1;
-	arg = line + 4;
+	const char *arg = line + 4;
 	if (strcmp(ins.op, "jmp") == 0) {
 		ins.offset = offset(arg);
 		return ins;
@@ -120,12 +111,9 @@ run(const Instruction *code, size_t count, long long a)
 int
 main(void)
 {
-	Instruction *code;
-	char *in;
 	size_t len, count;
-
-	in = slurp(stdin, &len);
-	code = parse(in, &count);
+	char *in = slurp(stdin, &len);
+	Instruction *code = parse(in, &count);
 	if (printf("%lld\n%lld\n", run(code, count, 0), run(code, count, 1)) <
 	    0)
 		die("printf:");
