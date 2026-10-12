@@ -12,50 +12,60 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
+static constexpr int SECONDS = 2503;
+
 typedef struct {
 	int speed, fly, rest, distance, points;
 } Reindeer;
 
-static int number(char **p);
-static void timeline(const Reindeer *deer, int *row);
-static void race(Reindeer *deer, size_t n);
-
 static int
 number(char **p)
 {
-	long value;
-
 	while (**p && (**p < '0' || **p > '9'))
 		(*p)++;
 	if (!**p)
 		die("missing reindeer number");
 	errno = 0;
-	value = strtol(*p, p, 10);
+	long value = strtol(*p, p, 10);
 	if (errno || value > INT_MAX)
 		die("invalid reindeer number");
 	return (int)value;
 }
 
 static void
+validate(const Reindeer *deer)
+{
+	if (!deer->fly || !deer->rest)
+		die("invalid reindeer duration");
+	int cycle, distance;
+	if (ckd_add(&cycle, deer->fly, deer->rest))
+		die("duration overflow");
+	int flying =
+	    ((SECONDS / cycle) * deer->fly) + MIN(SECONDS % cycle, deer->fly);
+	if (ckd_mul(&distance, deer->speed, flying))
+		die("distance overflow");
+}
+
+static void
 timeline(const Reindeer *deer, int *row)
 {
-	int t = 0, end, start, distance = 0, k;
-
-	while (t < 2503) {
-		start = t;
-		end = deer->fly < 2503 - t ? t + deer->fly : 2503;
-		for (k = t; k < end; k++)
+	int t = 0, distance = 0;
+	while (t < SECONDS) {
+		int start = t;
+		int end = deer->fly < SECONDS - t ? t + deer->fly : SECONDS;
+		for (int k = t; k < end; k++)
 			row[k] = distance + ((k - start + 1) * deer->speed);
 		distance += (end - start) * deer->speed;
 		t = end;
-		end = deer->rest < 2503 - t ? t + deer->rest : 2503;
-		for (k = t; k < end; k++)
+		end = deer->rest < SECONDS - t ? t + deer->rest : SECONDS;
+		for (int k = t; k < end; k++)
 			row[k] = distance;
 		t = end;
 	}
