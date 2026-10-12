@@ -127,8 +127,8 @@ recording(Record *record, char *file, const char *std, char *cc)
 	/* the CSV being appended is not a source change */
 	char *except = smprintf(":(exclude)%s", file);
 	char *rev_cmd[] = {git, rev, shortflag, head, NULL};
-	char *status_cmd[] = {git, status, porcelain, tracked, dashes, except,
-	                      NULL};
+	char *status_cmd[] = {git,    status, porcelain, tracked,
+	                      dashes, except, NULL};
 	char *cc_cmd[] = {cc, version, NULL};
 	struct stat st;
 
