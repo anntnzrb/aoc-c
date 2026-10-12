@@ -1,5 +1,6 @@
 /* lib.c: unit tests for lib/aoc.c */
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,23 +9,14 @@
 
 #include "aoc.h"
 
-static void test_slurp_empty(void);
-static void test_slurp_multichunk(void);
-static void test_puzzleday(void);
-static void test_nameid(void);
-static void test_nameid_reject(void);
-static void test_nextperm(void);
-
 static void
 test_slurp_empty(void)
 {
-	FILE *fp;
-	char *s;
-	size_t len;
-
-	if (!(fp = tmpfile()))
+	FILE *fp = tmpfile();
+	if (!fp)
 		die("tmpfile:");
-	s = slurp(fp, &len);
+	size_t len;
+	char *s = slurp(fp, &len);
 	assert(len == 0);
 	assert(s[0] == '\0');
 	free(s);
@@ -36,22 +28,21 @@ test_slurp_empty(void)
 static void
 test_slurp_multichunk(void)
 {
-	FILE *fp;
-	char *s;
-	size_t i, len, n = 100000;
-
-	if (!(fp = tmpfile()))
+	FILE *fp = tmpfile();
+	if (!fp)
 		die("tmpfile:");
-	for (i = 0; i < n; i++)
+	constexpr size_t n = 100000;
+	for (size_t i = 0; i < n; i++)
 		if (fputc('a' + (int)(i % 26), fp) == EOF)
 			die("fputc:");
 	if (fseek(fp, 0, SEEK_SET) < 0)
 		die("fseek:");
 
-	s = slurp(fp, &len);
+	size_t len;
+	char *s = slurp(fp, &len);
 	assert(len == n);
 	assert(strlen(s) == n);
-	for (i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		assert(s[i] == 'a' + (int)(i % 26));
 	free(s);
 	if (fclose(fp) == EOF)
@@ -91,26 +82,25 @@ test_nameid(void)
 	name[0] = 'c';
 	assert(names[1][0] == 'b' && strlen(names[1]) == 63);
 	assert(nameid(names, &n, LEN(names), "a") == 0 && n == 2);
-	assert(!strcmp(names[0], "a"));
+	assert(strcmp(names[0], "a") == 0);
 }
 
 static void
 test_nameid_reject(void)
 {
 	char names[2][64] = {"a", "b"}, name[65];
-	size_t n = 2, i;
-	pid_t pid;
-	int status;
-
 	memset(name, 'b', sizeof(name) - 1);
 	name[64] = '\0';
-	for (i = 0; i < 2; i++) {
-		if ((pid = fork()) < 0)
+	for (size_t i = 0; i < 2; i++) {
+		pid_t pid = fork();
+		if (pid < 0)
 			die("fork:");
 		if (!pid) {
+			size_t n = 2;
 			(void)nameid(names, &n, i ? 3 : 2, i ? name : "c");
 			_exit(0);
 		}
+		int status;
 		if (waitpid(pid, &status, 0) < 0)
 			die("waitpid:");
 		assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
@@ -120,8 +110,8 @@ test_nameid_reject(void)
 static void
 test_nextperm(void)
 {
-	size_t order[] = {0, 1, 2}, i;
-	const size_t want[][3] = {
+	size_t order[] = {0, 1, 2};
+	constexpr size_t want[][3] = {
 	    {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
 
 	assert(!nextperm(NULL, 0));
@@ -130,12 +120,28 @@ test_nextperm(void)
 	assert(!nextperm(order, 2) && order[0] == 1 && order[1] == 0);
 	order[0] = 0;
 	order[1] = 1;
-	for (i = 0; i < LEN(want); i++) {
+	for (size_t i = 0; i < LEN(want); i++) {
 		assert(nextperm(order, LEN(order)));
 		assert(!memcmp(order, want[i], sizeof(order)));
 	}
 	assert(!nextperm(order, LEN(order)));
 	assert(!memcmp(order, want[4], sizeof(order)));
+}
+
+static void
+test_realloc_overflow(void)
+{
+	pid_t pid = fork();
+	if (pid < 0)
+		die("fork:");
+	if (!pid) {
+		(void)ereallocarray(NULL, SIZE_MAX, 2);
+		_exit(0);
+	}
+	int status;
+	if (waitpid(pid, &status, 0) < 0)
+		die("waitpid:");
+	assert(WIFEXITED(status) && WEXITSTATUS(status) == 1);
 }
 
 int
@@ -147,6 +153,8 @@ main(void)
 	test_nameid();
 	test_nameid_reject();
 	test_nextperm();
-	puts("lib: ok");
+	test_realloc_overflow();
+	if (puts("lib: ok") == EOF)
+		die("puts:");
 	return EXIT_SUCCESS;
 }

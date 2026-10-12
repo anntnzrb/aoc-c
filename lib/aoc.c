@@ -1,30 +1,27 @@
 /* aoc.c: shared helpers for the Advent of Code solutions */
 #include <errno.h>
 #include <stdarg.h>
-#include <stdint.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-#define CHUNK ((size_t)8192)
-
-static int parsenum(const char *s, int *n);
+static constexpr size_t CHUNK = 8192;
 
 void
 die(const char *fmt, ...)
 {
 	va_list ap;
 	int saved = errno;
-	size_t n;
 
 	/* nothing sane left to do if stderr itself fails */
 	va_start(ap, fmt);
 	(void)vfprintf(stderr, fmt, ap);
 	va_end(ap);
 
-	n = strlen(fmt);
+	size_t n = strlen(fmt);
 	if (n > 0 && fmt[n - 1] == ':')
 		(void)fprintf(stderr, " %s", strerror(saved));
 	(void)fputc('\n', stderr);
@@ -34,9 +31,8 @@ die(const char *fmt, ...)
 void *
 ecalloc(size_t nmemb, size_t size)
 {
-	void *p;
-
-	if (!(p = calloc(nmemb, size)))
+	void *p = calloc(nmemb, size);
+	if (!p)
 		die("calloc:");
 	return p;
 }
@@ -44,11 +40,11 @@ ecalloc(size_t nmemb, size_t size)
 void *
 ereallocarray(void *p, size_t nmemb, size_t size)
 {
-	void *q;
-
-	if (size && nmemb > SIZE_MAX / size)
+	size_t bytes;
+	if (ckd_mul(&bytes, nmemb, size))
 		die("reallocarray: %zu * %zu overflows", nmemb, size);
-	if (!(q = realloc(p, nmemb * size)))
+	void *q = realloc(p, bytes);
+	if (!q)
 		die("realloc:");
 	return q;
 }
@@ -61,9 +57,10 @@ slurp(FILE *fp, size_t *len)
 
 	do {
 		if (cap - n < CHUNK) {
-			if (cap > SIZE_MAX / 2)
+			if (ckd_mul(&cap, cap, 2))
 				die("slurp: input too large");
-			cap = cap ? cap * 2 : CHUNK;
+			if (!cap)
+				cap = CHUNK;
 			buf = ereallocarray(buf, cap, 1);
 		}
 		r = fread(buf + n, 1, cap - n - 1, fp);
@@ -80,32 +77,30 @@ slurp(FILE *fp, size_t *len)
 size_t
 nameid(char names[][64], size_t *count, size_t capacity, const char *name)
 {
-	size_t i, len;
-
-	for (i = 0; i < *count; i++)
-		if (!strcmp(names[i], name))
+	for (size_t i = 0; i < *count; i++)
+		if (strcmp(names[i], name) == 0)
 			return i;
-	len = strlen(name);
+	size_t len = strlen(name);
 	if (*count >= capacity || len >= sizeof(names[0]))
 		die("name table full or name too long");
 	memcpy(names[*count], name, len + 1);
 	return (*count)++;
 }
 
-int
+bool
 nextperm(size_t *order, size_t n)
 {
-	size_t i, j, tmp;
-
 	if (n < 2)
-		return 0;
-	for (i = n - 1; i > 0 && order[i - 1] >= order[i]; i--)
+		return false;
+	size_t i = n - 1;
+	for (; i > 0 && order[i - 1] >= order[i]; i--)
 		;
 	if (i == 0)
-		return 0;
-	for (j = n - 1; order[j] <= order[i - 1]; j--)
+		return false;
+	size_t j = n - 1;
+	for (; order[j] <= order[i - 1]; j--)
 		;
-	tmp = order[i - 1];
+	size_t tmp = order[i - 1];
 	order[i - 1] = order[j];
 	order[j] = tmp;
 	for (j = n - 1; i < j; i++, j--) {
@@ -113,11 +108,11 @@ nextperm(size_t *order, size_t n)
 		order[i] = order[j];
 		order[j] = tmp;
 	}
-	return 1;
+	return true;
 }
 
 /* a plain decimal of at most 9 digits, so it cannot overflow an int */
-static int
+static bool
 parsenum(const char *s, int *n)
 {
 	size_t i;
@@ -125,26 +120,26 @@ parsenum(const char *s, int *n)
 
 	for (i = 0; s[i]; i++) {
 		if (i == 9 || s[i] < '0' || s[i] > '9')
-			return -1;
+			return false;
 		v = (v * 10) + (s[i] - '0');
 	}
 	if (i == 0)
-		return -1;
+		return false;
 	*n = v;
-	return 0;
+	return true;
 }
 
 /* AoC ran 25 days a year through 2024 and 12 from 2025 on */
 const char *
 puzzleday(const char *ys, const char *ds, int *year, int *day)
 {
-	int y, d;
-
-	if (parsenum(ys, &y) < 0)
+	int y;
+	if (!parsenum(ys, &y))
 		return "year must be a number";
 	if (y < 2015)
 		return "year out of range";
-	if (parsenum(ds, &d) < 0)
+	int d;
+	if (!parsenum(ds, &d))
 		return "day must be a number";
 	if (d < 1 || d > (y < 2025 ? 25 : 12))
 		return "day out of range";
