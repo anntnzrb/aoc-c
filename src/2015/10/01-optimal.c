@@ -36,9 +36,9 @@ putcount(char *out, size_t count)
 static size_t
 transform(const char *in, size_t len, char *out)
 {
-	size_t i, j, n = 0;
+	size_t n = 0;
 
-	for (i = 0; i < len; i = j) {
+	for (size_t i = 0, j; i < len; i = j) {
 		for (j = i + 1; j < len && in[j] == in[i]; j++)
 			;
 		n += putcount(out + n, j - i);
