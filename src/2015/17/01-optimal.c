@@ -47,14 +47,17 @@ solve(char *in, long long *total, long long *minimal)
 			continue;
 		top = MIN(150, top + cap);
 		/* Descending volumes prevent using this container twice. */
-		for (v = top; v >= cap; v--) {
-			ways[v] += ways[v - cap];
-			used = best[v - cap] + 1;
+		for (int v = top; v >= cap; v--) {
+			if (ckd_add(&ways[v], ways[v], ways[v - cap]))
+				die("too many combinations");
+			int used = best[v - cap] + 1;
 			if (used < best[v]) {
 				best[v] = used;
 				fewest[v] = fewest[v - cap];
 			} else if (used == best[v]) {
-				fewest[v] += fewest[v - cap];
+				if (ckd_add(&fewest[v], fewest[v],
+				            fewest[v - cap]))
+					die("too many minimal combinations");
 			}
 		}
 	}
