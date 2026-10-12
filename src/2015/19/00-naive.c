@@ -20,9 +20,6 @@ typedef struct {
 	char *text;
 } Molecule;
 
-static int compare(const void *a, const void *b);
-static size_t part1(const Rule *rules, size_t nrules, const char *molecule);
-
 static int
 compare(const void *a, const void *b)
 {
@@ -54,10 +51,10 @@ part1(const Rule *rules, size_t nrules, const char *molecule)
 	}
 	if (n)
 		qsort(made, n, sizeof(*made), compare);
-	for (i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		if (!i || strcmp(made[i].text, made[i - 1].text) != 0)
 			distinct++;
-	for (i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		free(made[i].text);
 	free(made);
 	return distinct;
@@ -66,12 +63,9 @@ part1(const Rule *rules, size_t nrules, const char *molecule)
 int
 main(void)
 {
-	Input data;
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	data = parse(in);
+	char *in = slurp(stdin, &len);
+	Input data = parse(in);
 	if (printf("%zu\n%zu\n",
 	           data.molecule ? part1(data.rules, data.count, data.molecule)
 	                         : 0,
