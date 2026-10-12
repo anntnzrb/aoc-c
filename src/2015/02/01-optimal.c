@@ -20,79 +20,73 @@
  * Here, separator table: 214,857 (214,857-214,857), pinned to CPU 0 to
  * avoid noisy counters when migrating between this host's CPU types.
  */
-#include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static long long add(long long a, long long b);
-static long long mul(long long a, long long b);
-static long long decimal(long long v, int digit);
-
 static long long
 add(long long a, long long b)
 {
-	if (a > LLONG_MAX - b)
+	if (ckd_add(&a, a, b))
 		die("answer overflow");
-	return a + b;
+	return a;
 }
 
 static long long
 mul(long long a, long long b)
 {
-	if (a > LLONG_MAX / b)
+	if (ckd_mul(&a, a, b))
 		die("answer overflow");
-	return a * b;
+	return a;
 }
 
 static long long
 decimal(long long v, int digit)
 {
-	if (v > LLONG_MAX / 10 ||
-	    (v == LLONG_MAX / 10 && digit > LLONG_MAX % 10))
+	if (ckd_mul(&v, v, 10) || ckd_add(&v, v, digit))
 		die("dimension overflow");
-	return (v * 10) + digit;
+	return v;
 }
 
 int
 main(void)
 {
 	static char buf[65536];
-	static const char separators[] = "xx\n";
-	long long dim[3], v = 0, face, sides, t;
+	static constexpr char separators[] = "xx\n";
+	long long dim[3], v = 0;
 	long long paper = 0, ribbon = 0;
-	size_t n, i, field = 0;
-	int digit, digits = 0;
+	size_t n, field = 0;
+	bool digits = false;
 
 	while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) {
-		for (i = 0; i < n; i++) {
+		for (size_t i = 0; i < n; i++) {
 			if (buf[i] >= '0' && buf[i] <= '9') {
-				digit = buf[i] - '0';
-				v = decimal(v, digit);
-				digits = 1;
+				v = decimal(v, buf[i] - '0');
+				digits = true;
 				continue;
 			}
 			if (!digits || !v || buf[i] != separators[field])
 				die("invalid box dimensions");
 			dim[field++] = v;
 			v = 0;
-			digits = 0;
+			digits = false;
 			if (field != 3)
 				continue;
 			field = 0;
 			if (dim[0] > dim[2]) {
-				t = dim[0];
+				long long t = dim[0];
 				dim[0] = dim[2];
 				dim[2] = t;
 			}
 			if (dim[1] > dim[2]) {
-				t = dim[1];
+				long long t = dim[1];
 				dim[1] = dim[2];
 				dim[2] = t;
 			}
-			face = mul(dim[0], dim[1]);
-			sides = add(dim[0], dim[1]);
+			long long face = mul(dim[0], dim[1]);
+			long long sides = add(dim[0], dim[1]);
 			paper = add(
 			    paper,
 			    add(mul(add(face, mul(dim[2], sides)), 2), face));
