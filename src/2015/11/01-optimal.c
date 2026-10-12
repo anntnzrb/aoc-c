@@ -19,32 +19,30 @@
 #include "aoc.h"
 
 typedef struct {
-	int straight, pairs, used, greater;
+	int pairs;
+	bool straight, used, greater;
 	char first;
 } State;
 
-static int allowed(int c);
-static int search(char *password, const char *lower, int greater);
-
-static int
+static bool
 allowed(int c)
 {
 	return c <= 'z' && c != 'i' && c != 'o' && c != 'l';
 }
 
-static int
-search(char *password, const char *lower, int greater)
+static bool
+search(char *password, const char *lower, bool greater)
 {
-	State states[9] = {{0}}, *state, *next;
-	int letters[8], c;
+	State states[9] = {};
+	int letters[8];
 	size_t pos = 0;
 
 	states[0].greater = greater;
-enter:
-	state = &states[pos];
+enter: {
+	const State *state = &states[pos];
 	if (pos == 8) {
 		if (state->greater && state->straight && state->pairs == 2)
-			return 1;
+			return true;
 		goto backtrack;
 	}
 	if (state->pairs + (int)((8 - pos + (pos && !state->used)) / 2) < 2)
@@ -56,23 +54,24 @@ enter:
 	      allowed(password[pos - 1] + 2)))
 		goto backtrack;
 	letters[pos] = state->greater ? 'a' : lower[pos];
-advance:
+}
+advance: {
 	if (letters[pos] > 'z')
 		goto backtrack;
-	c = letters[pos]++;
+	int c = letters[pos]++;
 	if (!allowed(c))
 		goto advance;
 	password[pos] = (char)c;
-	state = &states[pos];
-	next = &states[pos + 1];
+	const State *state = &states[pos];
+	State *next = &states[pos + 1];
 	*next = *state;
 	next->greater = state->greater || c > lower[pos];
 	if (pos >= 2 && password[pos - 2] + 1 == password[pos - 1] &&
 	    password[pos - 1] + 1 == c)
-		next->straight = 1;
-	next->used = 0;
+		next->straight = true;
+	next->used = false;
 	if (pos && password[pos - 1] == c && !state->used) {
-		next->used = 1;
+		next->used = true;
 		if (!next->first) {
 			next->first = (char)c;
 			next->pairs = 1;
@@ -82,9 +81,10 @@ advance:
 	}
 	++pos;
 	goto enter;
+}
 backtrack:
 	if (!pos)
-		return 0;
+		return false;
 	--pos;
 	goto advance;
 }
@@ -92,10 +92,8 @@ backtrack:
 int
 main(void)
 {
-	char *in, lower[9];
-	size_t len, i;
-
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len);
 	if (!len) {
 		free(in);
 		return EXIT_SUCCESS;
@@ -104,12 +102,13 @@ main(void)
 		in[--len] = '\0';
 	if (len != 8)
 		die("expected eight lowercase letters");
-	for (i = 0; i < len; ++i)
+	for (size_t i = 0; i < len; ++i)
 		if (in[i] < 'a' || in[i] > 'z')
 			die("expected eight lowercase letters");
-	for (i = 0; i < 2; ++i) {
+	for (size_t i = 0; i < 2; ++i) {
+		char lower[9];
 		memcpy(lower, in, sizeof(lower));
-		if (!search(in, lower, 0) && !search(in, lower, 1))
+		if (!search(in, lower, false) && !search(in, lower, true))
 			die("no valid password");
 		if (printf("%s\n", in) < 0)
 			die("printf:");
