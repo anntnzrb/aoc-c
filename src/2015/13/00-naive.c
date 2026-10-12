@@ -16,7 +16,7 @@
 
 #include "aoc.h"
 
-#define GUESTS 32
+static constexpr size_t GUESTS = 32;
 
 typedef struct {
 	char names[GUESTS][64];
@@ -24,21 +24,18 @@ typedef struct {
 	size_t count;
 } Table;
 
-static long long arrange(const Table *table);
-
 static long long
 arrange(const Table *table)
 {
-	long long best = LLONG_MIN, total;
-	size_t i, a, b, order[GUESTS + 1];
-
-	for (i = 0; i < table->count; i++)
+	size_t order[GUESTS + 1];
+	for (size_t i = 0; i < table->count; i++)
 		order[i] = i;
+	long long best = LLONG_MIN;
 	do {
-		total = 0;
-		for (i = 0; i < table->count; i++) {
-			a = order[i];
-			b = order[(i + 1) % table->count];
+		long long total = 0;
+		for (size_t i = 0; i < table->count; i++) {
+			size_t a = order[i];
+			size_t b = order[(i + 1) % table->count];
 			total +=
 			    table->happiness[a][b] + table->happiness[b][a];
 		}
@@ -50,14 +47,11 @@ arrange(const Table *table)
 int
 main(void)
 {
-	Table table = {0};
-	char *line = NULL, *end;
-	char from[64], to[64], sign[5], number[32], extra;
-	size_t capacity = 0, a, b;
-	long amount;
-	long long answer1 = 0, answer2 = 0;
-
+	Table table = {};
+	char *line = NULL;
+	size_t capacity = 0;
 	while (getline(&line, &capacity, stdin) != -1) {
+		char from[64], to[64], sign[5], number[32], extra;
 		if (sscanf(line,
 		           "%63s would %4s %31s happiness units by sitting "
 		           "next to "
@@ -65,19 +59,21 @@ main(void)
 		           from, sign, number, to, &extra) != 4 ||
 		    (strcmp(sign, "gain") != 0 && strcmp(sign, "lose") != 0))
 			die("invalid happiness statement");
+		char *end;
 		errno = 0;
-		amount = strtol(number, &end, 10);
+		long amount = strtol(number, &end, 10);
 		if (errno || end == number || *end || amount < 0 ||
 		    amount > INT_MAX)
 			die("invalid happiness amount");
-		a = nameid(table.names, &table.count, GUESTS, from);
-		b = nameid(table.names, &table.count, GUESTS, to);
+		size_t a = nameid(table.names, &table.count, GUESTS, from);
+		size_t b = nameid(table.names, &table.count, GUESTS, to);
 		table.happiness[a][b] =
-		    !strcmp(sign, "lose") ? -amount : amount;
+		    strcmp(sign, "lose") == 0 ? -amount : amount;
 	}
 	if (ferror(stdin))
 		die("getline:");
 	free(line);
+	long long answer1 = 0, answer2 = 0;
 	if (table.count) {
 		if (table.count < 3)
 			die("need at least three guests");
