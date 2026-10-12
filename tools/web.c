@@ -143,10 +143,11 @@ request(char *url, char *path, char *post)
 	     agent[] = "aoc-c tools/web", hf[] = "-H", stdinhdr[] = "@-",
 	     of[] = "-o", df[] = "--data";
 	char *argv[10] = {prog, fl, af, agent, hf, stdinhdr};
+	char *opt = path ? of : df, *arg = path ? path : post;
 	int i = 6;
-	if (path || post) {
-		argv[i++] = path ? of : df;
-		argv[i++] = path ? path : post;
+	if (arg) {
+		argv[i++] = opt;
+		argv[i++] = arg;
 	}
 	argv[i++] = url;
 	argv[i] = NULL;
