@@ -6,7 +6,7 @@
  * trade: the independent second pass vectorizes, at the cost of buffering;
  * bench 8 50 (Linux) used 95236 work instructions vs stream-skip 60254.
  */
-#include <stdckdint.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -17,6 +17,9 @@ main(void)
 {
 	size_t len;
 	char *in = slurp(stdin, &len);
+	/* Each byte adds at most three to first and two to second. */
+	if (len > SIZE_MAX / 3)
+		die("length overflow");
 	size_t quotes = 0, first = 0;
 
 	for (size_t i = 0; i < len; i++) {
@@ -25,17 +28,13 @@ main(void)
 		} else if (in[i] == '\\') {
 			if (++i == len)
 				die("incomplete escape");
-			if (ckd_add(&first, first, in[i] == 'x' ? 3 : 1))
-				die("length overflow");
+			first += in[i] == 'x' ? 3 : 1;
 		}
 	}
-	if (ckd_add(&first, first, quotes))
-		die("length overflow");
+	first += quotes;
 	size_t second = quotes;
 	for (size_t i = 0; i < len; i++)
-		if (ckd_add(&second, second,
-		            (size_t)(in[i] == '"' || in[i] == '\\')))
-			die("length overflow");
+		second += (size_t)(in[i] == '"' || in[i] == '\\');
 	free(in);
 	if (printf("%zu\n%zu\n", first, second) < 0)
 		die("printf:");

@@ -7,7 +7,7 @@
  * trade: count both lengths directly without materializing decoded strings
  */
 #include <ctype.h>
-#include <stdckdint.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -64,13 +64,10 @@ part2(const char *in, size_t len)
 			i++;
 			continue;
 		}
-		if (ckd_add(&encoded, encoded, 2))
-			die("encoded length overflow");
+		encoded += 2;
 		while (i < len && in[i] != '\n' && in[i] != '\r') {
 			code++;
-			if (ckd_add(&encoded, encoded,
-			            in[i] == '"' || in[i] == '\\' ? 2 : 1))
-				die("encoded length overflow");
+			encoded += in[i] == '"' || in[i] == '\\' ? 2 : 1;
 			i++;
 		}
 	}
@@ -82,6 +79,9 @@ main(void)
 {
 	size_t len;
 	char *in = slurp(stdin, &len);
+	/* At most two encoded bytes per byte plus two per literal. */
+	if (len > SIZE_MAX / 4)
+		die("encoded length overflow");
 	size_t first = part1(in, len);
 	size_t second = part2(in, len);
 	free(in);
