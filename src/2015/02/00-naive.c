@@ -6,20 +6,33 @@
  * trade: strtoll parses each dimension; the whole input stays in memory
  */
 #include <errno.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static char *box(char *p, long long dim[3]);
+static long long
+add(long long a, long long b)
+{
+	if (ckd_add(&a, a, b))
+		die("answer overflow");
+	return a;
+}
+
+static long long
+mul(long long a, long long b)
+{
+	if (ckd_mul(&a, a, b))
+		die("answer overflow");
+	return a;
+}
 
 static char *
 box(char *p, long long dim[3])
 {
-	char *end;
-	size_t i;
-
-	for (i = 0; i < 3; i++) {
+	for (size_t i = 0; i < 3; i++) {
+		char *end;
 		errno = 0;
 		dim[i] = strtoll(p, &end, 10);
 		if (errno || end == p || dim[i] <= 0 ||
@@ -33,21 +46,21 @@ box(char *p, long long dim[3])
 int
 main(void)
 {
-	long long dim[3], lw, wh, hl, paper = 0, ribbon = 0;
-	char *in, *p;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	p = in;
+	char *in = slurp(stdin, &len), *p = in;
+	long long paper = 0, ribbon = 0;
 	while (*p) {
+		long long dim[3];
 		p = box(p, dim);
-		lw = dim[0] * dim[1];
-		wh = dim[1] * dim[2];
-		hl = dim[2] * dim[0];
-		paper += (2 * (lw + wh + hl)) + MIN(lw, MIN(wh, hl));
-		ribbon += (2 * MIN(dim[0] + dim[1],
-		                   MIN(dim[1] + dim[2], dim[2] + dim[0]))) +
-		          (lw * dim[2]);
+		long long lw = mul(dim[0], dim[1]);
+		long long wh = mul(dim[1], dim[2]);
+		long long hl = mul(dim[2], dim[0]);
+		paper = add(paper, add(mul(2, add(add(lw, wh), hl)),
+		                       MIN(lw, MIN(wh, hl))));
+		ribbon = add(ribbon, add(mul(2, MIN(add(dim[0], dim[1]),
+		                                    MIN(add(dim[1], dim[2]),
+		                                        add(dim[2], dim[0])))),
+		                         mul(lw, dim[2])));
 	}
 	if (printf("%lld\n%lld\n", paper, ribbon) < 0)
 		die("printf:");
