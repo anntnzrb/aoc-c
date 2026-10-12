@@ -8,14 +8,11 @@
  * loop is branch-free, so it still vectorizes and beats a naive fused
  * loop.
  */
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
-
-static long long step(char c);
-static long long part1(const char *in, size_t len);
-static long long part2(const char *in, size_t len);
 
 /* '(' goes up a floor, ')' down; anything else (a newline) stays put */
 static long long
@@ -36,9 +33,7 @@ static long long
 part1(const char *in, size_t len)
 {
 	long long floor = 0;
-	size_t i;
-
-	for (i = 0; i < len; i++)
+	for (size_t i = 0; i < len; i++)
 		floor += step(in[i]);
 	return floor;
 }
@@ -48,9 +43,7 @@ static long long
 part2(const char *in, size_t len)
 {
 	long long floor = 0;
-	size_t i;
-
-	for (i = 0; i < len; i++)
+	for (size_t i = 0; i < len; i++)
 		if ((floor += step(in[i])) == -1)
 			return (long long)i + 1;
 	return 0;
