@@ -36,7 +36,7 @@ main(void)
 				first++;
 				second++;
 				if (++i == n) {
-					escaped = 1;
+					escaped = true;
 					break;
 				}
 				first += buf[i] == 'x' ? 2 : 0;
