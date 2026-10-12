@@ -18,6 +18,8 @@
  */
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,39 +35,48 @@ typedef struct {
 	int left, next;
 } State;
 
-static long long score(const long long *base, const long long *slope,
-                       long long x);
-static int interval(const long long *base, const long long *slope,
-                    long long *low, long long *high);
-static long long peak(const long long *base, const long long *slope,
-                      long long low, long long high);
-static long long calorie(const long long *base, const long long *slope,
-                         long long low, long long high);
-static void pair(const long long *base, const long long *slope, int left,
-                 long long best[2]);
-static void search(const Ingredient *in, size_t n, long long best[2]);
+static long long
+affine(long long base, long long scale, long long value)
+{
+	if (ckd_mul(&value, scale, value) || ckd_add(&value, base, value))
+		die("property overflow");
+	return value;
+}
+
+static long long
+subtract(long long left, long long right)
+{
+	long long value;
+	if (ckd_sub(&value, left, right))
+		die("property overflow");
+	return value;
+}
 
 static long long
 score(const long long *base, const long long *slope, long long x)
 {
-	return (base[0] + (x * slope[0])) * (base[1] + (x * slope[1])) *
-	       (base[2] + (x * slope[2])) * (base[3] + (x * slope[3]));
+	long long product = 1;
+	for (size_t j = 0; j < 4; j++)
+		if (ckd_mul(&product, product, affine(base[j], x, slope[j])))
+			die("score overflow");
+	return product;
 }
 
-static int
+static bool
 interval(const long long *base, const long long *slope, long long *low,
          long long *high)
 {
-	size_t j;
-
 	/* Skip zero plateaus before comparing adjacent positive scores. */
-	for (j = 0; j < 4; j++) {
+	for (size_t j = 0; j < 4; j++) {
 		if (slope[j] > 0 && base[j] <= 0)
-			*low = MAX(*low, (-base[j] / slope[j]) + 1);
+			*low =
+			    MAX(*low,
+			        affine(1, 1, subtract(0, base[j]) / slope[j]));
 		if (slope[j] <= 0 && base[j] <= 0)
-			return 0;
+			return false;
 		if (slope[j] < 0)
-			*high = MIN(*high, (base[j] - 1) / -slope[j]);
+			*high =
+			    MIN(*high, (base[j] - 1) / subtract(0, slope[j]));
 	}
 	return *low <= *high;
 }
@@ -74,10 +85,8 @@ static long long
 peak(const long long *base, const long long *slope, long long low,
      long long high)
 {
-	long long mid;
-
 	while (low < high) {
-		mid = low + ((high - low) / 2);
+		long long mid = low + ((high - low) / 2);
 		if (score(base, slope, mid) < score(base, slope, mid + 1))
 			low = mid + 1;
 		else
@@ -90,14 +99,15 @@ static long long
 calorie(const long long *base, const long long *slope, long long low,
         long long high)
 {
-	long long x;
-
 	/* high+1 means every residual allocation has 500 calories. */
 	if (!slope[4])
 		return base[4] == 500 ? high + 1 : -1;
-	if ((500 - base[4]) % slope[4])
+	long long remaining = subtract(500, base[4]);
+	if (remaining == LLONG_MIN && slope[4] == -1)
+		die("calorie overflow");
+	if (remaining % slope[4])
 		return -1;
-	x = (500 - base[4]) / slope[4];
+	long long x = remaining / slope[4];
 	return x >= low && x <= high ? x : -1;
 }
 
@@ -105,17 +115,20 @@ static void
 pair(const long long *base, const long long *slope, int left,
      long long best[2])
 {
-	long long low = 0, high = left, x, value, upper = 1;
-	size_t j;
-
+	long long low = 0, high = left;
 	if (!interval(base, slope, &low, &high))
 		return;
-	for (j = 0; j < 4; j++)
-		upper *= base[j] + (slope[j] * (slope[j] > 0 ? high : low));
-	x = calorie(base, slope, low, high);
+	long long upper = 1;
+	for (size_t j = 0; j < 4; j++) {
+		long long value =
+		    affine(base[j], slope[j], slope[j] > 0 ? high : low);
+		if (ckd_mul(&upper, upper, value))
+			die("score overflow");
+	}
+	long long x = calorie(base, slope, low, high);
 	if (upper <= best[0] && (upper <= best[1] || x < 0))
 		return;
-	value = peak(base, slope, low, high);
+	long long value = peak(base, slope, low, high);
 	best[0] = MAX(best[0], value);
 	if (x >= 0) {
 		if (x <= high)
@@ -127,27 +140,26 @@ pair(const long long *base, const long long *slope, int left,
 static void
 search(const Ingredient *in, size_t n, long long best[2])
 {
-	State *state;
-	long long base[5], slope[5];
-	size_t at = 0, depth, j;
-	int q;
-
-	depth = n > 1 ? n - 2 : 0;
-	state = ecalloc(n, sizeof(*state));
+	size_t depth = n > 1 ? n - 2 : 0;
+	State *state = ecalloc(n, sizeof(*state));
 	state[0].left = 100;
-	for (j = 0; j < LEN(slope); j++)
-		slope[j] = in[depth].prop[j] - in[n - 1].prop[j];
+	long long slope[5];
+	for (size_t j = 0; j < LEN(slope); j++)
+		slope[j] = subtract(in[depth].prop[j], in[n - 1].prop[j]);
+	size_t at = 0;
 	for (;;) {
 		if (at == depth) {
-			for (j = 0; j < LEN(base); j++)
-				base[j] = state[at].sum[j] +
-				          (state[at].left * in[n - 1].prop[j]);
+			long long base[5];
+			for (size_t j = 0; j < LEN(base); j++)
+				base[j] =
+				    affine(state[at].sum[j], state[at].left,
+				           in[n - 1].prop[j]);
 			pair(base, slope, state[at].left, best);
 		} else if (state[at].next <= state[at].left) {
-			q = state[at].next++;
-			for (j = 0; j < LEN(base); j++)
-				state[at + 1].sum[j] =
-				    state[at].sum[j] + (q * in[at].prop[j]);
+			int q = state[at].next++;
+			for (size_t j = 0; j < LEN(slope); j++)
+				state[at + 1].sum[j] = affine(
+				    state[at].sum[j], q, in[at].prop[j]);
 			state[at + 1].left = state[at].left - q;
 			state[++at].next = 0;
 			continue;
@@ -163,20 +175,19 @@ int
 main(void)
 {
 	Ingredient *in = NULL;
-	char *text, *line, *save, *end;
-	const char *p;
-	size_t len, n = 0, j;
-	long long best[2] = {0};
-
-	text = slurp(stdin, &len);
-	for (line = strtok_r(text, "\n", &save); line;
+	size_t len;
+	char *text = slurp(stdin, &len), *save;
+	size_t n = 0;
+	for (char *line = strtok_r(text, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		if (!(p = strchr(line, ':')))
+		const char *p = strchr(line, ':');
+		if (!p)
 			die("invalid ingredient");
 		in = ereallocarray(in, n + 1, sizeof(*in));
-		for (j = 0; j < LEN(in[n].prop); j++) {
+		for (size_t j = 0; j < LEN(in[n].prop); j++) {
 			while (*p && *p != '-' && !isdigit((unsigned char)*p))
 				p++;
+			char *end;
 			errno = 0;
 			in[n].prop[j] = strtoll(p, &end, 10);
 			if (p == end || errno)
@@ -185,6 +196,7 @@ main(void)
 		}
 		n++;
 	}
+	long long best[2] = {};
 	if (n)
 		search(in, n, best);
 	if (printf("%lld\n%lld\n", best[0], best[1]) < 0)

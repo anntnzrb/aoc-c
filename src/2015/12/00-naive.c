@@ -7,31 +7,32 @@
  */
 #include <ctype.h>
 #include <errno.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-static long long number(char **p);
-static long long part1(char *in);
-static void space(char **p);
-static int string(char **p);
 typedef struct {
 	long long sum;
-	int object, red;
+	bool object, red;
 } Frame;
 
-static long long part2(char *in, size_t len);
+static long long
+add(long long sum, long long value)
+{
+	if (ckd_add(&sum, sum, value))
+		die("sum overflow");
+	return sum;
+}
 
 static long long
 number(char **p)
 {
 	char *end;
-	long long n;
-
 	errno = 0;
-	n = strtoll(*p, &end, 10);
+	long long n = strtoll(*p, &end, 10);
 	if (errno || end == *p)
 		die("invalid integer");
 	*p = end;
@@ -41,12 +42,10 @@ number(char **p)
 static long long
 part1(char *in)
 {
-	char *p;
 	long long sum = 0;
-
-	for (p = in; *p;) {
+	for (char *p = in; *p;) {
 		if (*p == '-' || (*p >= '0' && *p <= '9'))
-			sum += number(&p);
+			sum = add(sum, number(&p));
 		else
 			p++;
 	}
@@ -60,15 +59,12 @@ space(char **p)
 		(*p)++;
 }
 
-static int
+static bool
 string(char **p)
 {
-	const char *start;
-	int red;
-
 	if (**p != '"')
 		die("expected string");
-	start = ++*p;
+	const char *start = ++*p;
 	while (**p && **p != '"') {
 		if (**p == '\\') {
 			(*p)++;
@@ -79,7 +75,7 @@ string(char **p)
 	}
 	if (!**p)
 		die("unterminated string");
-	red = *p - start == 3 && memcmp(start, "red", 3) == 0;
+	bool red = *p - start == 3 && memcmp(start, "red", 3) == 0;
 	(*p)++;
 	return red;
 }
@@ -87,41 +83,40 @@ string(char **p)
 static long long
 part2(char *in, size_t len)
 {
-	Frame *stack;
-	char *p;
+	size_t capacity;
+	if (ckd_add(&capacity, len, 1))
+		die("stack size overflow");
+	Frame *stack = ecalloc(capacity, sizeof(*stack));
 	size_t depth = 0;
-	long long sum;
-	int red;
-
-	stack = ecalloc(len + 1, sizeof(*stack));
-	for (p = in; *p;) {
+	for (char *p = in; *p;) {
 		if (*p == '{' || *p == '[') {
 			depth++;
 			stack[depth].sum = 0;
-			stack[depth].red = 0;
+			stack[depth].red = false;
 			stack[depth].object = *p == '{';
 			p++;
 		} else if (*p == '}' || *p == ']') {
 			if (!depth || stack[depth].object != (*p == '}'))
 				die("unmatched container");
-			sum = stack[depth].red ? 0 : stack[depth].sum;
+			long long sum =
+			    stack[depth].red ? 0 : stack[depth].sum;
 			depth--;
-			stack[depth].sum += sum;
+			stack[depth].sum = add(stack[depth].sum, sum);
 			p++;
 		} else if (*p == '"') {
-			red = string(&p);
+			bool red = string(&p);
 			space(&p);
 			if (red && stack[depth].object && *p != ':')
-				stack[depth].red = 1;
+				stack[depth].red = true;
 		} else if (*p == '-' || (*p >= '0' && *p <= '9')) {
-			stack[depth].sum += number(&p);
+			stack[depth].sum = add(stack[depth].sum, number(&p));
 		} else {
 			p++;
 		}
 	}
 	if (depth)
 		die("unterminated container");
-	sum = stack[0].sum;
+	long long sum = stack[0].sum;
 	free(stack);
 	return sum;
 }
@@ -129,13 +124,10 @@ part2(char *in, size_t len)
 int
 main(void)
 {
-	char *in;
-	long long sum1, sum2;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	sum1 = part1(in);
-	sum2 = part2(in, len);
+	char *in = slurp(stdin, &len);
+	long long sum1 = part1(in);
+	long long sum2 = part2(in, len);
 	if (printf("%lld\n%lld\n", sum1, sum2) < 0)
 		die("printf:");
 	free(in);

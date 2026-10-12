@@ -10,9 +10,6 @@
 
 #include "aoc.h"
 
-static void increment(char *password, size_t len);
-static int valid(const char *password, size_t len);
-
 static void
 increment(char *password, size_t len)
 {
@@ -26,22 +23,21 @@ increment(char *password, size_t len)
 	}
 }
 
-static int
+static bool
 valid(const char *password, size_t len)
 {
-	size_t i;
-	int straight = 0, pairs = 0;
-	char first = '\0';
-
-	for (i = 0; i < len; ++i) {
+	bool straight = false;
+	for (size_t i = 0; i < len; ++i) {
 		if (password[i] == 'i' || password[i] == 'o' ||
 		    password[i] == 'l')
-			return 0;
+			return false;
 		if (i >= 2 && password[i - 2] + 1 == password[i - 1] &&
 		    password[i - 1] + 1 == password[i])
-			straight = 1;
+			straight = true;
 	}
-	for (i = 0; i + 1 < len; ++i) {
+	int pairs = 0;
+	char first = '\0';
+	for (size_t i = 0; i + 1 < len; ++i) {
 		if (password[i] != password[i + 1])
 			continue;
 		if (!first) {
@@ -58,10 +54,8 @@ valid(const char *password, size_t len)
 int
 main(void)
 {
-	char *in;
-	size_t len, i;
-
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len);
 	if (!len) {
 		free(in);
 		return EXIT_SUCCESS;
@@ -70,10 +64,10 @@ main(void)
 		in[--len] = '\0';
 	if (len != 8)
 		die("expected eight lowercase letters");
-	for (i = 0; i < len; ++i)
+	for (size_t i = 0; i < len; ++i)
 		if (in[i] < 'a' || in[i] > 'z')
 			die("expected eight lowercase letters");
-	for (i = 0; i < 2; ++i) {
+	for (size_t i = 0; i < 2; ++i) {
 		do {
 			increment(in, len);
 		} while (!valid(in, len));
