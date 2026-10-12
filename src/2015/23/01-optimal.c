@@ -86,13 +86,14 @@ countloop(long long reg[2])
 	while (reg[0] != 1) {
 		if (ckd_add(&reg[1], reg[1], 1))
 			die("register overflow");
-		if (reg[0] % 2) {
+		/* Nonnegative registers: bit parity and halving are exact. */
+		if (reg[0] & 1) {
 			if (ckd_mul(&reg[0], reg[0], 3) ||
 			    ckd_add(&reg[0], reg[0], 1) ||
 			    ckd_add(&reg[1], reg[1], 1))
 				die("register overflow");
 		}
-		reg[0] /= 2;
+		reg[0] >>= 1;
 	}
 }
 

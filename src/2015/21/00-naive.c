@@ -8,6 +8,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdbit.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,20 +46,18 @@ stat(char **in, const char *label)
 static Item
 loadout(size_t w, size_t a, unsigned int mask)
 {
+	if (stdc_count_ones(mask) > 2)
+		return (Item){-1, 0, 0};
 	Item item = weapons[w];
-	int count = 0;
 
 	item.cost += armors[a].cost;
 	item.armor += armors[a].armor;
 	for (size_t r = 0; r < sizeof rings / sizeof *rings; r++)
 		if (mask & (1U << r)) {
-			count++;
 			item.cost += rings[r].cost;
 			item.damage += rings[r].damage;
 			item.armor += rings[r].armor;
 		}
-	if (count > 2)
-		item.cost = -1;
 	return item;
 }
 
@@ -73,14 +72,14 @@ wins(int hp, int damage, int armor, int attack, int defense)
 		attack = 1;
 	if (damage < 1)
 		damage = 1;
-	for (;;) {
+	/* Stats <= INT_MAX and shop damage <= 14 keep subtraction in int. */
+	while (hp > attack) {
 		hp -= attack;
-		if (hp <= 0)
-			return true;
 		player -= damage;
 		if (player <= 0)
 			return false;
 	}
+	return true;
 }
 
 int
