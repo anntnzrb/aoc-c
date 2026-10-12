@@ -112,8 +112,8 @@ main(void)
 			p++;
 			break;
 		case '"':
-			stack[depth].red |=
-			    redvalue(&p) && stack[depth].object;
+			if (redvalue(&p) && stack[depth].object)
+				stack[depth].red = true;
 			break;
 		default:
 			if (*p == '-' || (*p >= '0' && *p <= '9')) {
