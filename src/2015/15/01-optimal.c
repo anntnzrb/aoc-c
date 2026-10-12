@@ -36,20 +36,24 @@ typedef struct {
 } State;
 
 static long long
+magnitude(long long value)
+{
+	if (value < -LLONG_MAX / 300 || value > LLONG_MAX / 300)
+		die("property out of range");
+	return value < 0 ? -value : value;
+}
+
+static long long
 affine(long long base, long long scale, long long value)
 {
-	if (ckd_mul(&value, scale, value) || ckd_add(&value, base, value))
-		die("property overflow");
-	return value;
+	/* Parsed magnitudes <= LLONG_MAX/300 bound affine intermediates. */
+	return base + (scale * value);
 }
 
 static long long
 subtract(long long left, long long right)
 {
-	long long value;
-	if (ckd_sub(&value, left, right))
-		die("property overflow");
-	return value;
+	return left - right;
 }
 
 static long long
@@ -57,8 +61,7 @@ score(const long long *base, const long long *slope, long long x)
 {
 	long long product = 1;
 	for (size_t j = 0; j < 4; j++)
-		if (ckd_mul(&product, product, affine(base[j], x, slope[j])))
-			die("score overflow");
+		product *= affine(base[j], x, slope[j]);
 	return product;
 }
 
@@ -103,8 +106,6 @@ calorie(const long long *base, const long long *slope, long long low,
 	if (!slope[4])
 		return base[4] == 500 ? high + 1 : -1;
 	long long remaining = subtract(500, base[4]);
-	if (remaining == LLONG_MIN && slope[4] == -1)
-		die("calorie overflow");
 	if (remaining % slope[4])
 		return -1;
 	long long x = remaining / slope[4];
@@ -122,8 +123,7 @@ pair(const long long *base, const long long *slope, int left,
 	for (size_t j = 0; j < 4; j++) {
 		long long value =
 		    affine(base[j], slope[j], slope[j] > 0 ? high : low);
-		if (ckd_mul(&upper, upper, value))
-			die("score overflow");
+		upper *= value;
 	}
 	long long x = calorie(base, slope, low, high);
 	if (upper <= best[0] && (upper <= best[1] || x < 0))
@@ -175,6 +175,7 @@ int
 main(void)
 {
 	Ingredient *in = NULL;
+	long long limit[5] = {};
 	size_t len;
 	char *text = slurp(stdin, &len), *save;
 	size_t n = 0;
@@ -192,10 +193,17 @@ main(void)
 			in[n].prop[j] = strtoll(p, &end, 10);
 			if (p == end || errno)
 				die("invalid property");
+			long long value = magnitude(in[n].prop[j]);
+			limit[j] = MAX(limit[j], value);
 			p = end;
 		}
 		n++;
 	}
+	/* Every property is bounded by 100*limit; all score prefixes fit. */
+	long long bound = 1;
+	for (size_t j = 0; j < 4; j++)
+		if (ckd_mul(&bound, bound, limit[j] * 100))
+			die("score bound overflow");
 	long long best[2] = {};
 	if (n)
 		search(in, n, best);
