@@ -6,12 +6,15 @@
  * N input bytes, A total rectangle area, G = 1000 * 1000 cells
  * trade: one integer per light; simulation follows instructions directly
  */
+#include <limits.h>
 #include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
+
+static_assert(UINT_MAX <= ULLONG_MAX / 1000000);
 
 static unsigned int
 coordinate(const char **p, const char *suffix)
@@ -38,8 +41,8 @@ apply(unsigned int *cell, int op, bool brightness)
 	if (brightness) {
 		if (op == 0)
 			*cell -= *cell > 0;
-		else if (ckd_add(cell, *cell, (unsigned int)op))
-			die("brightness overflow");
+		else
+			*cell += (unsigned int)op;
 	} else if (op == 2)
 		*cell ^= 1;
 	else
@@ -52,6 +55,7 @@ solve(const char *in, bool brightness)
 	if (!*in)
 		return 0;
 	unsigned int *lights = ecalloc(1000000, sizeof(*lights));
+	unsigned int budget = 0;
 	for (const char *p = in; *p;) {
 		int op;
 		if (!strncmp(p, "turn on ", 8)) {
@@ -71,6 +75,9 @@ solve(const char *in, bool brightness)
 		unsigned int y2 = coordinate(&p, "");
 		if ((*p && *p != '\n') || x1 > x2 || y1 > y2)
 			die("invalid rectangle");
+		/* Every cell is bounded by the sum of all increments. */
+		if (brightness && ckd_add(&budget, budget, (unsigned int)op))
+			die("brightness overflow");
 		for (unsigned int y = y1; y <= y2; y++)
 			for (unsigned int x = x1; x <= x2; x++)
 				apply(&lights[(y * 1000) + x], op, brightness);
