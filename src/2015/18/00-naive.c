@@ -81,6 +81,9 @@ simulate(const char *in, size_t len, bool stuck)
 {
 	if (!len)
 		return 0;
+	/* Grid <= 100 x 100 plus prefix: <= 10112 bytes, counts fit in int. */
+	if (len > 10112)
+		die("grid too large");
 	long steps = 100;
 	if (strncmp(in, "steps ", 6) == 0) {
 		char *end;
