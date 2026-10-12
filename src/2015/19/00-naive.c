@@ -9,6 +9,7 @@
  * trade: exhaustive interval parsing proves the minimum without greedy
  *        reductions; binary helper productions carry zero replacement cost.
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,16 +33,17 @@ static size_t
 part1(const Rule *rules, size_t nrules, const char *molecule)
 {
 	Molecule *made = NULL;
-	char *s;
-	const char *p;
-	size_t i, n = 0, distinct = 0, len = strlen(molecule), a, b, pos;
+	size_t n = 0, distinct = 0, len = strlen(molecule);
 
-	for (i = 0; i < nrules; i++) {
-		a = strlen(rules[i].from);
-		b = strlen(rules[i].to);
-		for (p = molecule; (p = strstr(p, rules[i].from)); p++) {
-			pos = (size_t)(p - molecule);
-			s = ecalloc(len - a + b + 1, 1);
+	for (size_t i = 0; i < nrules; i++) {
+		size_t a = strlen(rules[i].from), b = strlen(rules[i].to);
+		for (const char *p = molecule; (p = strstr(p, rules[i].from));
+		     p++) {
+			size_t pos = (size_t)(p - molecule), bytes;
+			if (ckd_add(&bytes, len - a, b) ||
+			    ckd_add(&bytes, bytes, 1))
+				die("replacement too large");
+			char *s = ecalloc(bytes, 1);
 			memcpy(s, molecule, pos);
 			memcpy(s + pos, rules[i].to, b);
 			memcpy(s + pos + b, p + a, len - pos - a + 1);

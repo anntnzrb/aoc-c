@@ -23,6 +23,7 @@
  *           cpu med 587.0 us, rss 5652 KiB; 50 timing runs on Linux x86_64.
  */
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,14 +162,17 @@ static size_t
 calibrate(const Rule *rules, size_t count, const char *s)
 {
 	Edit *edits = NULL;
-	const char *p;
-	size_t *next, n = strlen(s), r, k = 0, capacity = 0, i, distinct = 0;
-	int ready;
+	size_t n = strlen(s), k = 0, capacity = 0;
 
-	next = ecalloc(n + 1, sizeof(*next));
-	for (r = 0; r < count; r++) {
-		ready = 0;
-		for (p = s; (p = strstr(p, rules[r].from)); p++) {
+	size_t *next = ecalloc(n + 1, sizeof(*next));
+	for (size_t r = 0; r < count; r++) {
+		size_t a = strlen(rules[r].from), b = strlen(rules[r].to), out;
+		if (a > n)
+			continue;
+		if (ckd_add(&out, n - a, b) || out == SIZE_MAX)
+			die("replacement too large");
+		bool ready = false;
+		for (const char *p = s; (p = strstr(p, rules[r].from)); p++) {
 			if (k == capacity) {
 				if (capacity > SIZE_MAX / 2)
 					die("too many calibration edits");
@@ -202,29 +206,32 @@ weight(const char *s)
 			s += width;
 			continue;
 		}
-		value += width == 1 && *s == 'Y' ? -1 : 1;
+		if (ckd_add(&value, value, width == 1 && *s == 'Y' ? -1 : 1))
+			die("molecule weight too large");
 		s += width;
 	}
 	return value;
 }
 
-static int
+static bool
 invariant(const Rule *rules, size_t count, long long *electron)
 {
-	long long w;
-	size_t r;
-
 	*electron = LLONG_MAX;
-	for (r = 0; r < count; r++) {
+	for (size_t r = 0; r < count; r++) {
 		if (strchr(rules[r].to, 'e'))
-			return 0;
-		w = weight(rules[r].to);
+			return false;
+		long long w = weight(rules[r].to), difference;
 		if (strcmp(rules[r].from, "e") == 0) {
-			if (*electron != LLONG_MAX && *electron != w - 1)
-				return 0;
-			*electron = w - 1;
-		} else if (w - weight(rules[r].from) != 1) {
-			return 0;
+			if (ckd_sub(&difference, w, 1))
+				die("molecule weight too large");
+			if (*electron != LLONG_MAX && *electron != difference)
+				return false;
+			*electron = difference;
+		} else {
+			if (ckd_sub(&difference, w, weight(rules[r].from)))
+				die("molecule weight too large");
+			if (difference != 1)
+				return false;
 		}
 	}
 	return *electron != LLONG_MAX;
@@ -233,21 +240,22 @@ invariant(const Rule *rules, size_t count, long long *electron)
 static size_t
 fabricate(const Rule *rules, size_t count, const char *s)
 {
-	char names[256][64] = {{0}};
-	Grammar g;
-	size_t nnames = 0, *tokens;
-	long long electron, answer;
+	long long electron;
 
 	if (!invariant(rules, count, &electron))
 		return part2(rules, count, s);
-	tokens = ecalloc(strlen(s) + 1, sizeof(*tokens));
+	char names[256][64] = {};
+	size_t nnames = 0;
+	size_t *tokens = ecalloc(strlen(s) + 1, sizeof(*tokens));
 	(void)tokenize(s, names, &nnames, tokens, strlen(s) + 1);
-	g = makegrammar(rules, count, names, &nnames);
+	Grammar g = makegrammar(rules, count, names, &nnames);
 	free(g.rules);
 	free(tokens);
 	if (strcmp(s, "e") == 0)
 		return 0;
-	answer = weight(s) - electron;
+	long long answer;
+	if (ckd_sub(&answer, weight(s), electron))
+		die("molecule weight too large");
 	if (answer < 0)
 		return part2(rules, count, s);
 	return (size_t)answer;
@@ -256,12 +264,9 @@ fabricate(const Rule *rules, size_t count, const char *s)
 int
 main(void)
 {
-	Input data;
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	data = parse(in);
+	char *in = slurp(stdin, &len);
+	Input data = parse(in);
 	if (printf("%zu\n%zu\n",
 	           data.molecule
 	               ? calibrate(data.rules, data.count, data.molecule)

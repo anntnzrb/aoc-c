@@ -170,10 +170,10 @@ part2(const Rule *rules, size_t nrules, const char *molecule)
 static Input
 parse(char *in)
 {
-	Input data = {NULL, 0, NULL};
-	char *line, *next, *arrow;
+	Input data = {};
+	char *next;
 
-	for (line = in; *line; line = next) {
+	for (char *line = in; *line; line = next) {
 		next = strchr(line, '\n');
 		if (next)
 			*next++ = '\0';
