@@ -352,6 +352,11 @@ input scope before applying them elsewhere.
 - Compiler support for C23 does not imply analyzer or linter support: clang 21's ValistChecker does not model the C23 variadic builtin, and `readability-implicit-bool-conversion` models C++ boolean conversions rather than C's integer operators.
 - Rebuild cached `bin/tools` binaries when flags change: the bootstrap checks source timestamps, not compiler flags. Touch a shared tool header before the full gate to force rebuilding without deleting ignored caches.
 - Removing an explicit `-W` flag does not disable that warning under `-Weverything`; use a documented `-Wno-*` only when the diagnostic is inapplicable.
+- File-local constants are `static constexpr`; `ckd_*` rejects `bool` operands, so convert through an integer variable (casting a call trips `-Wbad-function-cast`).
+- cppcheck loses an index bound when `a[i]` goes straight into `ckd_add`; store the validated element first (2015/22).
+- Overflow checks can push a function past cognitive complexity 25: extract a day-local parse helper rather than raising the threshold (2015/10, 17, 23).
+- cppcheck's `variableScope` ignores escaping addresses: narrowing an array whose address is stored in an outer `argv` would dangle. Restructure so the use is at the outer scope (`tools/web.c` `request`).
+- A day owns its whole directory, day-local headers included (2015/19's `molecule.h`).
 
 ## Benchmarking and optimization
 
