@@ -8,13 +8,14 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-#define CITIES 32
+static constexpr size_t CITIES = 32;
 
 typedef struct {
 	char names[CITIES][64];
@@ -22,21 +23,17 @@ typedef struct {
 	size_t n;
 } Graph;
 
-static long long route(const Graph *g, const size_t *order);
-
 static long long
 route(const Graph *g, const size_t *order)
 {
-	long long total = 0, distance;
-	size_t i;
+	long long total = 0;
 
-	for (i = 1; i < g->n; i++) {
-		distance = g->distance[order[i - 1]][order[i]];
+	for (size_t i = 1; i < g->n; i++) {
+		long long distance = g->distance[order[i - 1]][order[i]];
 		if (distance < 0)
 			return -1;
-		if (distance >= LLONG_MAX - total)
+		if (ckd_add(&total, total, distance) || total == LLONG_MAX)
 			die("route distance overflow");
-		total += distance;
 	}
 	return total;
 }
