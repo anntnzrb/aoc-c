@@ -46,7 +46,7 @@ These rules bind every agent. Include this section in every delegated solve brie
 - Do not use remembered answers or solutions. Show the reasoning from the statement.
 - A journal from another repository covering the same year counts as an outside solution: never read it while solving that year. This repository's journal is fine for other days.
 - Web search for puzzle content is forbidden for everyone. Keep workers' web search off with per-run options when supported; never change persistent user configuration.
-- Orchestrators may run fetch, statement refresh and submit operations and fetch language/tool documentation. Workers may use the network only for submit and statement refresh through repository operations. Helpers and reviewers have no network unless their brief grants a specific operation; their briefs may permit isolated scratch writes for references and checks. Setup agents may download toolchain dependencies through the environment definition. Do not disable access required by permitted operations.
+- Orchestrators may run fetch, statement refresh and submit operations and fetch language/tool documentation. Workers may use the network only for submit, statement refresh and the commit operation when it needs network access, through repository operations. Helpers and reviewers have no network unless their brief grants a specific operation; their briefs may permit isolated scratch writes for references and checks. Setup agents may download toolchain dependencies through the environment definition. Do not disable access required by permitted operations.
 
 ## Solution roles
 
