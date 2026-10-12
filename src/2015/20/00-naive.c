@@ -18,13 +18,16 @@ solve(size_t target, bool limited)
 {
 	size_t rate = limited ? 11 : 10;
 	size_t bound = (target / rate) + (target % rate != 0);
+	size_t total;
+	/* Each elf contributes once: totals <= bound * (bound + 1) / 2. */
+	if (ckd_add(&total, bound, 1) || ckd_mul(&total, bound, total))
+		die("present target too large");
 	size_t *presents = ecalloc(bound + 1, sizeof(*presents));
 	for (size_t elf = 1; elf <= bound; elf++)
 		for (size_t house = elf, visit = 1;
 		     house <= bound && (!limited || visit <= 50);
 		     house += elf, visit++)
-			if (ckd_add(&presents[house], presents[house], elf))
-				die("present total too large");
+			presents[house] += elf;
 	size_t answer;
 	for (answer = 1; answer <= bound; answer++)
 		if (presents[answer] >= bound)
