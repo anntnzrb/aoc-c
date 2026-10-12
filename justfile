@@ -12,12 +12,16 @@ year := env_var_or_default("AOC_YEAR", "2015")
 csrc := "lib/*.c tests/*.c templates/*.c tools/*.c src/*/*/*.c"
 lib := "lib/aoc.c"
 
-# C99 + POSIX.1-2008, no extensions (suckless.org/coding_style)
-std := "-std=c99 -pedantic-errors -D_POSIX_C_SOURCE=200809L"
+# C23 + POSIX.1-2008, no language extensions
+std := "-std=c23 -pedantic-errors -D_POSIX_C_SOURCE=200809L"
 
 # Every clang warning as an error, minus the ones that only make noise.
 # -Wno-implicit-void-ptr-cast: C++-compat noise; casting malloc is wrong in C.
-warn := "-Weverything -Werror -Wno-padded -Wno-unsafe-buffer-usage -Wno-pre-c11-compat -Wno-implicit-void-ptr-cast -Wdeclaration-after-statement"
+# -Wno-pre-c23-compat: C23 features need not compile as older C standards.
+# -Wno-pre-c11-compat: compatibility with standards older than C23 is not a goal.
+# -Wno-disabled-macro-expansion: glibc's C23 const-safe string macros self-refer.
+# Declarations now belong at first use, so omit -Wdeclaration-after-statement.
+warn := "-Weverything -Werror -Wno-padded -Wno-unsafe-buffer-usage -Wno-pre-c11-compat -Wno-pre-c23-compat -Wno-disabled-macro-expansion -Wno-implicit-void-ptr-cast"
 cflags := std + " " + warn + " -Iinclude -Itools"
 
 # ASan's runtime hangs at startup on macOS 27 (Apple and nixpkgs clang
@@ -39,18 +43,19 @@ release := "-O2 -D_FORTIFY_SOURCE=3 -fstack-protector-strong " + fortify
 # GCC as a second strict gate on Linux: warnings clang lacks (-Wlogical-op,
 # -Wduplicated-cond, ...) plus -fanalyzer; -O2 and fortify so flow-based
 # warnings see optimized code
-gccwarn := "-O2 -D_FORTIFY_SOURCE=3 -Werror -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wdouble-promotion -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2 -Wformat-signedness -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wjump-misses-init -Wcast-qual -Wcast-align=strict -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wold-style-definition -Wredundant-decls -Wnested-externs -Wundef -Wunused-macros -Wvla -Walloca -Wdeclaration-after-statement -Wbad-function-cast -Wswitch-default -Wswitch-enum -Wfloat-equal -Wpointer-arith -Wtrampolines -Wstrict-overflow=2 -Winit-self -Wstack-protector -Warray-bounds=2 -Wshift-overflow=2 -Wstringop-overflow=4 -Wunsafe-loop-optimizations -fanalyzer"
+# Declarations now belong at first use, so omit -Wdeclaration-after-statement.
+gccwarn := "-O2 -D_FORTIFY_SOURCE=3 -Werror -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wdouble-promotion -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2 -Wformat-signedness -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wjump-misses-init -Wcast-qual -Wcast-align=strict -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wold-style-definition -Wredundant-decls -Wnested-externs -Wundef -Wunused-macros -Wvla -Walloca -Wbad-function-cast -Wswitch-default -Wswitch-enum -Wfloat-equal -Wpointer-arith -Wtrampolines -Wstrict-overflow=2 -Winit-self -Wstack-protector -Warray-bounds=2 -Wshift-overflow=2 -Wstringop-overflow=4 -Wunsafe-loop-optimizations -fanalyzer"
 
 # clang static analyzer: default checkers plus security, unix, nullability,
 # valist and portability; the memset_s/Annex K advice is off, as in .clang-tidy
 analyzer := "-Xanalyzer -analyzer-werror -Xanalyzer -analyzer-checker=security,unix,nullability,valist,optin.portability -Xanalyzer -analyzer-disable-checker=security.insecureAPI.DeprecatedOrUnsafeBufferHandling"
 
 # cppcheck, every check including inconclusive ones. Suppressed:
-#   variableScope: suckless declares variables at the top of the function
+#   variableScope: retained until the orchestrator migrates every day
 #   staticFunction in lib/aoc.c: public API that days call (or will)
 #   unmatchedSuppression in lib/aoc.c: the line above stops matching once
 #   every lib function has a caller outside lib (2015/06)
-cppcheck := "--std=c99 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=variableScope --suppress=staticFunction:lib/aoc.c --suppress=unmatchedSuppression:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
+cppcheck := "--std=c23 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=variableScope --suppress=staticFunction:lib/aoc.c --suppress=unmatchedSuppression:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
 
 default:
     @just --list

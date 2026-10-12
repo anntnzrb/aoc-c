@@ -2,8 +2,16 @@
 #ifndef AOC_H
 #define AOC_H
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+
+/* clang 21's ValistChecker models only __builtin_va_start, not C23's
+ * __builtin_c23_va_start; remove when the pinned analyzer learns it. */
+#ifdef __clang_analyzer__
+#undef va_start
+#define va_start(ap, ...) __builtin_va_start(ap, __VA_ARGS__)
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 #define AOC_NORETURN __attribute__((noreturn))
