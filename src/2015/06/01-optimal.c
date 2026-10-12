@@ -10,6 +10,7 @@
  * two-axis compressed rows 32195975 work (just bench 6 50, Linux).
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,19 +45,17 @@ static Instruction *
 instructions(const char *in, size_t len, size_t *count,
              unsigned char edges[1001])
 {
-	Instruction *list, *cmd;
-	const char *p;
-
 	/* The shortest valid instruction bounds the command count. */
-	list =
+	Instruction *list =
 	    len ? ecalloc((len / (sizeof("toggle 0,0 through 0,0") - 1)) + 1,
 	                  sizeof(*list))
 	        : NULL;
 	*count = 0;
 	edges[0] = edges[1000] = 1;
-	for (p = in; *p;) {
-
-		cmd = &list[(*count)++];
+	for (const char *p = in; *p;) {
+		if (*count >= UINT_MAX / 2)
+			die("brightness overflow");
+		Instruction *cmd = &list[(*count)++];
 		if (!strncmp(p, "turn on ", 8)) {
 			cmd->op = 1;
 			p += 8;

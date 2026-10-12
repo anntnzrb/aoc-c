@@ -33,13 +33,13 @@ coordinate(const char **p, const char *suffix)
 }
 
 static void
-apply(unsigned int *cell, int op, int brightness)
+apply(unsigned int *cell, int op, bool brightness)
 {
 	if (brightness) {
 		if (op == 0)
 			*cell -= *cell > 0;
-		else
-			*cell += (unsigned int)op;
+		else if (ckd_add(cell, *cell, (unsigned int)op))
+			die("brightness overflow");
 	} else if (op == 2)
 		*cell ^= 1;
 	else
