@@ -68,28 +68,27 @@ race(Reindeer *deer, size_t n)
 int
 main(void)
 {
-	Reindeer *deer;
-	char *in, *p, *line, *save;
-	size_t len, capacity = 1, n = 0, i;
-	int distance = 0, points = 0;
-
-	in = slurp(stdin, &len);
-	for (p = in; *p; p++)
+	size_t len;
+	char *in = slurp(stdin, &len);
+	size_t capacity = 1;
+	for (const char *p = in; *p; p++)
 		if (*p == '\n')
 			capacity++;
-	deer = ecalloc(capacity, sizeof(*deer));
-	for (line = strtok_r(in, "\n", &save); line;
+	Reindeer *deer = ecalloc(capacity, sizeof(*deer));
+	size_t n = 0;
+	char *save;
+	for (char *line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		p = line;
+		char *p = line;
 		deer[n].speed = number(&p);
 		deer[n].fly = number(&p);
 		deer[n].rest = number(&p);
-		if (!deer[n].fly || !deer[n].rest)
-			die("invalid reindeer duration");
+		validate(&deer[n]);
 		n++;
 	}
 	race(deer, n);
-	for (i = 0; i < n; i++) {
+	int distance = 0, points = 0;
+	for (size_t i = 0; i < n; i++) {
 		if (deer[i].distance > distance)
 			distance = deer[i].distance;
 		if (deer[i].points > points)
