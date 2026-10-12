@@ -85,10 +85,8 @@ static long long
 peak(const long long *base, const long long *slope, long long low,
      long long high)
 {
-	long long mid;
-
 	while (low < high) {
-		mid = low + ((high - low) / 2);
+		long long mid = low + ((high - low) / 2);
 		if (score(base, slope, mid) < score(base, slope, mid + 1))
 			low = mid + 1;
 		else
@@ -177,20 +175,19 @@ int
 main(void)
 {
 	Ingredient *in = NULL;
-	char *text, *line, *save, *end;
-	const char *p;
-	size_t len, n = 0, j;
-	long long best[2] = {0};
-
-	text = slurp(stdin, &len);
-	for (line = strtok_r(text, "\n", &save); line;
+	size_t len;
+	char *text = slurp(stdin, &len), *save;
+	size_t n = 0;
+	for (char *line = strtok_r(text, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		if (!(p = strchr(line, ':')))
+		const char *p = strchr(line, ':');
+		if (!p)
 			die("invalid ingredient");
 		in = ereallocarray(in, n + 1, sizeof(*in));
-		for (j = 0; j < LEN(in[n].prop); j++) {
+		for (size_t j = 0; j < LEN(in[n].prop); j++) {
 			while (*p && *p != '-' && !isdigit((unsigned char)*p))
 				p++;
+			char *end;
 			errno = 0;
 			in[n].prop[j] = strtoll(p, &end, 10);
 			if (p == end || errno)
@@ -199,6 +196,7 @@ main(void)
 		}
 		n++;
 	}
+	long long best[2] = {};
 	if (n)
 		search(in, n, best);
 	if (printf("%lld\n%lld\n", best[0], best[1]) < 0)

@@ -72,21 +72,19 @@ int
 main(void)
 {
 	Ingredient *in = NULL;
-	char *text, *line, *save, *end;
-	const char *p;
-	int *amount;
-	size_t len, n = 0, j;
-	long long best[2] = {0};
-
-	text = slurp(stdin, &len);
-	for (line = strtok_r(text, "\n", &save); line;
+	size_t len;
+	char *text = slurp(stdin, &len), *save;
+	size_t n = 0;
+	for (char *line = strtok_r(text, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		if (!(p = strchr(line, ':')))
+		const char *p = strchr(line, ':');
+		if (!p)
 			die("invalid ingredient");
 		in = ereallocarray(in, n + 1, sizeof(*in));
-		for (j = 0; j < LEN(in[n].prop); j++) {
+		for (size_t j = 0; j < LEN(in[n].prop); j++) {
 			while (*p && *p != '-' && !isdigit((unsigned char)*p))
 				p++;
+			char *end;
 			errno = 0;
 			in[n].prop[j] = strtoll(p, &end, 10);
 			if (p == end || errno)
@@ -95,7 +93,8 @@ main(void)
 		}
 		n++;
 	}
-	amount = ecalloc(n, sizeof(*amount));
+	int *amount = ecalloc(n, sizeof(*amount));
+	long long best[2] = {};
 	if (n)
 		search(in, amount, n, best);
 	if (printf("%lld\n%lld\n", best[0], best[1]) < 0)
