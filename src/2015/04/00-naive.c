@@ -14,13 +14,10 @@
 
 #include "aoc.h"
 
-static void md5(char *message, size_t len, uint32_t digest[4]);
-static uint64_t mine(const char *in, size_t len, uint32_t mask);
-
 static void
 md5(char *message, size_t len, uint32_t digest[4])
 {
-	static const uint32_t constants[64] = {
+	static constexpr uint32_t constants[64] = {
 	    0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf,
 	    0x4787c62a, 0xa8304613, 0xfd469501, 0x698098d8, 0x8b44f7af,
 	    0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e,
@@ -35,38 +32,36 @@ md5(char *message, size_t len, uint32_t digest[4])
 	    0x85845dd1, 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1,
 	    0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 	};
-	static const unsigned int shifts[16] = {
+	static constexpr unsigned int shifts[16] = {
 	    7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21,
 	};
-	uint32_t words[16], a, b, c, d, f, tmp;
 	uint64_t bits = (uint64_t)len * 8;
-	size_t total = len + 1, off, i, j, g;
-	unsigned int s;
-
+	size_t total = len + 1;
 	while (total % 64 != 56)
 		total++;
 	memset(message + len, 0, total + 8 - len);
 	message[len] = '\x80';
-	for (i = 0; i < 8; i++)
+	for (size_t i = 0; i < 8; i++)
 		message[total + i] = (char)(unsigned char)(bits >> (i * 8));
 	total += 8;
 	digest[0] = 0x67452301;
 	digest[1] = 0xefcdab89;
 	digest[2] = 0x98badcfe;
 	digest[3] = 0x10325476;
-	for (off = 0; off < total; off += 64) {
-		for (i = 0; i < 16; i++) {
+	for (size_t off = 0; off < total; off += 64) {
+		uint32_t words[16];
+		for (size_t i = 0; i < 16; i++) {
 			words[i] = 0;
-			for (j = 0; j < 4; j++)
+			for (size_t j = 0; j < 4; j++)
 				words[i] |= (uint32_t)(unsigned char)
 				                message[off + (i * 4) + j]
 				            << (j * 8);
 		}
-		a = digest[0];
-		b = digest[1];
-		c = digest[2];
-		d = digest[3];
-		for (i = 0; i < 64; i++) {
+		uint32_t a = digest[0], b = digest[1];
+		uint32_t c = digest[2], d = digest[3];
+		for (size_t i = 0; i < 64; i++) {
+			uint32_t f;
+			size_t g;
 			if (i < 16) {
 				f = (b & c) | (~b & d);
 				g = i;
@@ -80,13 +75,13 @@ md5(char *message, size_t len, uint32_t digest[4])
 				f = c ^ (b | ~d);
 				g = (7 * i) % 16;
 			}
-			s = shifts[((i / 16) * 4) + (i % 4)];
+			unsigned int s = shifts[((i / 16) * 4) + (i % 4)];
 			/* Explicit modulo sums and masked shifts satisfy
 			 * UBSan. */
 			f = (uint32_t)((uint64_t)a + f + constants[i] +
 			               words[g]);
 			f = ((f & (UINT32_MAX >> s)) << s) | (f >> (32 - s));
-			tmp = d;
+			uint32_t tmp = d;
 			d = c;
 			c = b;
 			b = (uint32_t)((uint64_t)b + f);
@@ -102,19 +97,16 @@ md5(char *message, size_t len, uint32_t digest[4])
 static uint64_t
 mine(const char *in, size_t len, uint32_t mask)
 {
-	char *message;
-	uint32_t digest[4];
-	uint64_t n;
-	int digits;
-
 	if (len > SIZE_MAX - 92 || len > UINT64_MAX / 8 - 20)
 		die("key too long");
-	message = ecalloc(len + 92, 1);
+	char *message = ecalloc(len + 92, 1);
 	memcpy(message, in, len);
-	for (n = 1;; n++) {
-		digits = snprintf(message + len, 21, "%" PRIu64, n);
+	uint64_t n = 1;
+	for (;; n++) {
+		int digits = snprintf(message + len, 21, "%" PRIu64, n);
 		if (digits < 0 || digits >= 21)
 			die("snprintf failed");
+		uint32_t digest[4];
 		md5(message, len + (size_t)digits, digest);
 		/* MD5 emits each word little-endian: bytes 0, 1, then a
 		 * nibble. */
@@ -130,11 +122,8 @@ mine(const char *in, size_t len, uint32_t mask)
 int
 main(void)
 {
-	char *in;
 	size_t len;
-	uint64_t p1, p2;
-
-	in = slurp(stdin, &len);
+	char *in = slurp(stdin, &len);
 	if (len && in[len - 1] == '\n')
 		len--;
 	if (len && in[len - 1] == '\r')
@@ -143,8 +132,8 @@ main(void)
 		free(in);
 		return EXIT_SUCCESS;
 	}
-	p1 = mine(in, len, 0x00f0ffff);
-	p2 = mine(in, len, 0x00ffffff);
+	uint64_t p1 = mine(in, len, 0x00f0ffff);
+	uint64_t p2 = mine(in, len, 0x00ffffff);
 	if (printf("%" PRIu64 "\n%" PRIu64 "\n", p1, p2) < 0)
 		die("printf:");
 	free(in);

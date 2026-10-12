@@ -21,13 +21,14 @@
 
 #include "aoc.h"
 
-#define LANES 16
+static constexpr size_t LANES = 16;
+
 #define MD5_F(b, c, d) ((x->b[lane] & x->c[lane]) | (~x->b[lane] & x->d[lane]))
 #define MD5_G(b, c, d) ((x->b[lane] & x->d[lane]) | (x->c[lane] & ~x->d[lane]))
 #define MD5_H(b, c, d) (x->b[lane] ^ x->c[lane] ^ x->d[lane])
 #define MD5_I(b, c, d) (x->c[lane] ^ (x->b[lane] | ~x->d[lane]))
 #define STEP(a, b, c, d, fn, k, s, t)                                         \
-	for (lane = 0; lane < LANES; lane++) {                                \
+	for (size_t lane = 0; lane < LANES; lane++) {                         \
 		x->a[lane] = (uint32_t)((uint64_t)x->a[lane] + fn(b, c, d) +  \
 		                        block->words[k][lane] + (t));         \
 		x->a[lane] = ((x->a[lane] & (UINT32_MAX >> (s))) << (s)) |    \
@@ -43,30 +44,11 @@ typedef struct {
 	uint32_t a[LANES], b[LANES], c[LANES], d[LANES];
 } State;
 
-static void putbyte(Block *blocks, size_t pos, size_t lane,
-                    unsigned char value);
-static void round1(State *x, const Block *block);
-static void round2(State *x, const Block *block);
-static void round3(State *x, const Block *block);
-static void round4(State *state, State *x, const Block *block, int final);
-static void compress(State *state, const Block *block, int final);
-static void advance(Block *blocks, size_t end, size_t lane);
-static State keyhash(const char *in, size_t len);
-static void prepare(Block *blocks, const char *in, size_t len, size_t digits,
-                    uint64_t base, uint64_t limit);
-static int matches(const State *state, uint64_t base, size_t count,
-                   uint64_t answers[2]);
-static int searchwidth(const State *prefix, Block *blocks, size_t end,
-                       uint64_t base, uint64_t limit, uint64_t answers[2]);
-static void mine(const char *in, size_t len, uint64_t answers[2]);
-
 static void
 putbyte(Block *blocks, size_t pos, size_t lane, unsigned char value)
 {
-	uint32_t *word;
 	unsigned int shift = (unsigned int)(pos % 4) * 8;
-
-	word = &blocks[pos / 64].words[(pos % 64) / 4][lane];
+	uint32_t *word = &blocks[pos / 64].words[(pos % 64) / 4][lane];
 	*word =
 	    (*word & ~(UINT32_C(0xff) << shift)) | ((uint32_t)value << shift);
 }
@@ -74,8 +56,6 @@ putbyte(Block *blocks, size_t pos, size_t lane, unsigned char value)
 static void
 round1(State *x, const Block *block)
 {
-	size_t lane;
-
 	STEP(a, b, c, d, MD5_F, 0, 7, 0xd76aa478)
 	STEP(d, a, b, c, MD5_F, 1, 12, 0xe8c7b756)
 	STEP(c, d, a, b, MD5_F, 2, 17, 0x242070db)
@@ -97,8 +77,6 @@ round1(State *x, const Block *block)
 static void
 round2(State *x, const Block *block)
 {
-	size_t lane;
-
 	STEP(a, b, c, d, MD5_G, 1, 5, 0xf61e2562)
 	STEP(d, a, b, c, MD5_G, 6, 9, 0xc040b340)
 	STEP(c, d, a, b, MD5_G, 11, 14, 0x265e5a51)
@@ -120,8 +98,6 @@ round2(State *x, const Block *block)
 static void
 round3(State *x, const Block *block)
 {
-	size_t lane;
-
 	STEP(a, b, c, d, MD5_H, 5, 4, 0xfffa3942)
 	STEP(d, a, b, c, MD5_H, 8, 11, 0x8771f681)
 	STEP(c, d, a, b, MD5_H, 11, 16, 0x6d9d6122)
@@ -141,10 +117,8 @@ round3(State *x, const Block *block)
 }
 
 static void
-round4(State *state, State *x, const Block *block, int final)
+round4(State *state, State *x, const Block *block, bool final)
 {
-	size_t lane;
-
 	STEP(a, b, c, d, MD5_I, 0, 6, 0xf4292244)
 	STEP(d, a, b, c, MD5_I, 7, 10, 0x432aff97)
 	STEP(c, d, a, b, MD5_I, 14, 15, 0xab9423a7)
@@ -159,7 +133,7 @@ round4(State *state, State *x, const Block *block, int final)
 	STEP(b, c, d, a, MD5_I, 13, 21, 0x4e0811a1)
 	STEP(a, b, c, d, MD5_I, 4, 6, 0xf7537e82)
 	/* Steps 62-64 only update d, c, b; the leading digest bytes need a. */
-	for (lane = 0; lane < LANES; lane++)
+	for (size_t lane = 0; lane < LANES; lane++)
 		state->a[lane] =
 		    (uint32_t)((uint64_t)state->a[lane] + x->a[lane]);
 	if (final)
@@ -167,7 +141,7 @@ round4(State *state, State *x, const Block *block, int final)
 	STEP(d, a, b, c, MD5_I, 11, 10, 0xbd3af235)
 	STEP(c, d, a, b, MD5_I, 2, 15, 0x2ad7d2bb)
 	STEP(b, c, d, a, MD5_I, 9, 21, 0xeb86d391)
-	for (lane = 0; lane < LANES; lane++) {
+	for (size_t lane = 0; lane < LANES; lane++) {
 		state->b[lane] =
 		    (uint32_t)((uint64_t)state->b[lane] + x->b[lane]);
 		state->c[lane] =
@@ -178,7 +152,7 @@ round4(State *state, State *x, const Block *block, int final)
 }
 
 static void
-compress(State *state, const Block *block, int final)
+compress(State *state, const Block *block, bool final)
 {
 	State x = *state;
 
@@ -191,13 +165,13 @@ compress(State *state, const Block *block, int final)
 static void
 advance(Block *blocks, size_t end, size_t lane)
 {
-	uint32_t word;
-	unsigned int digit, carry = LANES;
+	unsigned int carry = (unsigned int)LANES;
 
 	while (carry) {
 		end--;
-		word = blocks[end / 64].words[(end % 64) / 4][lane];
-		digit = ((word >> ((end % 4) * 8)) & 0xff) - '0' + carry;
+		uint32_t word = blocks[end / 64].words[(end % 64) / 4][lane];
+		unsigned int digit =
+		    ((word >> ((end % 4) * 8)) & 0xff) - '0' + carry;
 		carry = digit / 10;
 		putbyte(blocks, end, lane,
 		        (unsigned char)('0' + (digit % 10)));
@@ -207,23 +181,22 @@ advance(Block *blocks, size_t end, size_t lane)
 static State
 keyhash(const char *in, size_t len)
 {
-	Block block = {0};
-	State state = {0};
-	size_t lane, i, off;
+	State state = {};
 
-	for (lane = 0; lane < LANES; lane++) {
+	for (size_t lane = 0; lane < LANES; lane++) {
 		state.a[lane] = 0x67452301;
 		state.b[lane] = 0xefcdab89;
 		state.c[lane] = 0x98badcfe;
 		state.d[lane] = 0x10325476;
 	}
 	/* Whole key blocks never change between candidates. */
-	for (off = 0; len - off >= 64; off += 64) {
-		for (i = 0; i < 64; i++)
-			for (lane = 0; lane < LANES; lane++)
+	Block block = {};
+	for (size_t off = 0; len - off >= 64; off += 64) {
+		for (size_t i = 0; i < 64; i++)
+			for (size_t lane = 0; lane < LANES; lane++)
 				putbyte(&block, i, lane,
 				        (unsigned char)in[off + i]);
-		compress(&state, &block, 0);
+		compress(&state, &block, false);
 	}
 	return state;
 }
@@ -232,68 +205,62 @@ static void
 prepare(Block *blocks, const char *in, size_t len, size_t digits,
         uint64_t base, uint64_t limit)
 {
-	char decimal[21];
 	uint64_t bits = (uint64_t)(len + digits) * 8;
-	size_t lane, i, rem = len % 64, last = rem + digits >= 56 ? 1 : 0;
+	size_t rem = len % 64, last = rem + digits >= 56 ? 1 : 0;
 	size_t count = (size_t)MIN((uint64_t)LANES, limit - base + 1);
-	int written;
 
 	memset(blocks, 0, 2 * sizeof(*blocks));
-	for (lane = 0; lane < LANES; lane++) {
-		for (i = 0; i < rem; i++)
+	for (size_t lane = 0; lane < LANES; lane++) {
+		for (size_t i = 0; i < rem; i++)
 			putbyte(blocks, i, lane,
 			        (unsigned char)in[len - rem + i]);
-		written = snprintf(decimal, sizeof(decimal), "%" PRIu64,
-		                   base + MIN(lane, count - 1));
+		char decimal[21];
+		int written = snprintf(decimal, sizeof(decimal), "%" PRIu64,
+		                       base + MIN(lane, count - 1));
 		if (written < 0 || (size_t)written != digits)
 			die("snprintf failed");
-		for (i = 0; i < digits; i++)
+		for (size_t i = 0; i < digits; i++)
 			putbyte(blocks, rem + i, lane,
 			        (unsigned char)decimal[i]);
 		putbyte(blocks, rem + digits, lane, 0x80);
-		for (i = 0; i < 8; i++)
+		for (size_t i = 0; i < 8; i++)
 			putbyte(blocks, (last * 64) + 56 + i, lane,
 			        (unsigned char)(bits >> (i * 8)));
 	}
 }
 
-static int
+static bool
 matches(const State *state, uint64_t base, size_t count, uint64_t answers[2])
 {
-	size_t lane;
-
 	/* Lane order preserves the lowest matching candidate. */
-	for (lane = 0; lane < count; lane++) {
+	for (size_t lane = 0; lane < count; lane++) {
 		if (!answers[0] && (state->a[lane] & 0x00f0ffff) == 0)
 			answers[0] = base + lane;
 		if ((state->a[lane] & 0x00ffffff) == 0) {
 			answers[1] = base + lane;
-			return 1;
+			return true;
 		}
 	}
-	return 0;
+	return false;
 }
 
-static int
+static bool
 searchwidth(const State *prefix, Block *blocks, size_t end, uint64_t base,
             uint64_t limit, uint64_t answers[2])
 {
-	State state;
-	size_t count, lane;
-
 	for (;;) {
-		count = (size_t)MIN((uint64_t)LANES, limit - base + 1);
-		state = *prefix;
+		size_t count = (size_t)MIN((uint64_t)LANES, limit - base + 1);
+		State state = *prefix;
 		compress(&state, blocks, end < 56);
 		if (end >= 56)
-			compress(&state, blocks + 1, 1);
+			compress(&state, blocks + 1, true);
 		if (matches(&state, base, count, answers))
-			return 1;
+			return true;
 		if (limit - base < LANES)
-			return 0;
+			return false;
 		base += LANES;
 		count = (size_t)MIN((uint64_t)LANES, limit - base + 1);
-		for (lane = 0; lane < count; lane++)
+		for (size_t lane = 0; lane < count; lane++)
 			advance(blocks, end, lane);
 	}
 }
@@ -301,16 +268,13 @@ searchwidth(const State *prefix, Block *blocks, size_t end, uint64_t base,
 static void
 mine(const char *in, size_t len, uint64_t answers[2])
 {
-	Block blocks[2];
-	State prefix;
-	uint64_t base = 1, limit = 9;
-	size_t digits;
-
 	if (len > UINT64_MAX / 8 - 20)
 		die("key too long");
-	prefix = keyhash(in, len);
+	State prefix = keyhash(in, len);
+	uint64_t base = 1, limit = 9;
 	/* Within a decimal width, only the carry digits change. */
-	for (digits = 1; digits <= 20; digits++) {
+	for (size_t digits = 1; digits <= 20; digits++) {
+		Block blocks[2];
 		prepare(blocks, in, len, digits, base, limit);
 		if (searchwidth(&prefix, blocks, (len % 64) + digits, base,
 		                limit, answers))
@@ -327,16 +291,14 @@ mine(const char *in, size_t len, uint64_t answers[2])
 int
 main(void)
 {
-	char *in;
 	size_t len;
-	uint64_t answers[2] = {0, 0};
-
-	in = slurp(stdin, &len);
+	char *in = slurp(stdin, &len);
 	if (len && in[len - 1] == '\n')
 		len--;
 	if (len && in[len - 1] == '\r')
 		len--;
 	if (len) {
+		uint64_t answers[2] = {};
 		mine(in, len, answers);
 		if (printf("%" PRIu64 "\n%" PRIu64 "\n", answers[0],
 		           answers[1]) < 0)
