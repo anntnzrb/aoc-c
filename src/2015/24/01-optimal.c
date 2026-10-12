@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -26,30 +27,25 @@ typedef struct {
 	int next, left, sum;
 } Frame;
 
-static int partition(unsigned long long mask, int groups);
-static int lookup(int start, int need);
-static void first(int count, unsigned long long mask, int groups);
-static unsigned long long solve(int sum, int groups);
-
 static int weights[63], prefix[64], n, target;
 static unsigned long long best;
 
-static int
+static bool
 partition(unsigned long long mask, int groups)
 {
-	int packages[63], choices[63] = {0}, sums[3] = {0};
-	int count, i, group, other;
-
-	count = 0;
-	for (i = 0; i < n; i++)
+	int packages[63], choices[63] = {}, sums[3] = {};
+	int count = 0;
+	for (int i = 0; i < n; i++)
 		if (mask & (1ULL << i))
 			packages[count++] = weights[i];
-	i = 0;
+	int i = 0;
 	while (i >= 0) {
 		if (i == count)
-			return 1;
-		for (group = choices[i]; group < groups; group++) {
-			for (other = 0; other < group; other++)
+			return true;
+		int group = choices[i];
+		for (; group < groups; group++) {
+			int other = 0;
+			for (; other < group; other++)
 				if (sums[other] == sums[group])
 					break;
 			if (other == group &&
@@ -65,18 +61,15 @@ partition(unsigned long long mask, int groups)
 			sums[choices[i] - 1] -= packages[i];
 		}
 	}
-	return 0;
+	return false;
 }
 
 static int
 lookup(int start, int need)
 {
-	int low, high, middle;
-
-	low = start;
-	high = n;
+	int low = start, high = n;
 	while (low < high) {
-		middle = low + ((high - low) / 2);
+		int middle = low + ((high - low) / 2);
 		if (weights[middle] > need)
 			low = middle + 1;
 		else
@@ -88,20 +81,18 @@ lookup(int start, int need)
 static void
 first(int count, unsigned long long mask, int groups)
 {
-	Frame stack[64], *frame;
-	int depth, i, low, need;
-	unsigned long long product;
-
+	Frame stack[64];
 	stack[0] = (Frame){0, 1, 0, count, 0};
-	depth = 0;
+	int depth = 0;
 	while (depth >= 0) {
-		frame = &stack[depth];
+		Frame *frame = &stack[depth];
 		if (frame->left == 1) {
-			need = target - frame->sum;
-			low = lookup(frame->next, need);
+			int need = target - frame->sum;
+			int low = lookup(frame->next, need);
 			if (need > 0 && low < n && weights[low] == need &&
 			    frame->product <= best / (unsigned int)need) {
-				product = frame->product * (unsigned int)need;
+				unsigned long long product =
+				    frame->product * (unsigned int)need;
 				if (product < best &&
 				    partition(
 				        mask ^ (frame->chosen | (1ULL << low)),
@@ -119,7 +110,7 @@ first(int count, unsigned long long mask, int groups)
 			depth--;
 			continue;
 		}
-		i = frame->next++;
+		int i = frame->next++;
 		if (weights[i] <= target - frame->sum &&
 		    frame->product <= best / (unsigned int)weights[i])
 			stack[++depth] = (Frame){
@@ -132,14 +123,11 @@ first(int count, unsigned long long mask, int groups)
 static unsigned long long
 solve(int sum, int groups)
 {
-	unsigned long long mask;
-	int count;
-
 	if (sum % groups)
 		die("total weight is not divisible by group count");
 	target = sum / groups;
-	mask = (1ULL << n) - 1;
-	for (count = 1; count <= n; count++) {
+	unsigned long long mask = (1ULL << n) - 1;
+	for (int count = 1; count <= n; count++) {
 		if (prefix[count] < target)
 			continue;
 		best = ULLONG_MAX;
@@ -153,43 +141,36 @@ solve(int sum, int groups)
 int
 main(void)
 {
-	char *in, *p, *end;
-	unsigned long long part1, part2;
-	long value;
 	size_t len;
-	int sum, i, j, weight;
-
-	in = slurp(stdin, &len);
-	p = in;
+	char *in = slurp(stdin, &len), *p = in;
 	n = 0;
-	sum = 0;
+	int sum = 0;
 	while (*p) {
 		if (isspace((unsigned char)*p)) {
 			p++;
 			continue;
 		}
 		errno = 0;
-		value = strtol(p, &end, 10);
+		char *end;
+		long value = strtol(p, &end, 10);
 		if (errno || end == p || n == 63 || value <= 0 ||
-		    value > INT_MAX - sum)
+		    ckd_add(&sum, sum, value))
 			die("invalid package weight or too many packages");
 		weights[n++] = (int)value;
-		sum += (int)value;
 		p = end;
 	}
 	free(in);
 	if (!n)
 		return EXIT_SUCCESS;
-	for (i = 1; i < n; i++) {
-		weight = weights[i];
-		for (j = i; j > 0 && weights[j - 1] < weight; j--)
+	for (int i = 1; i < n; i++) {
+		int weight = weights[i], j = i;
+		for (; j > 0 && weights[j - 1] < weight; j--)
 			weights[j] = weights[j - 1];
 		weights[j] = weight;
 	}
-	for (i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 		prefix[i + 1] = prefix[i] + weights[i];
-	part1 = solve(sum, 3);
-	part2 = solve(sum, 4);
+	unsigned long long part1 = solve(sum, 3), part2 = solve(sum, 4);
 	if (printf("%llu\n%llu\n", part1, part2) < 0)
 		die("write answer:");
 	return EXIT_SUCCESS;

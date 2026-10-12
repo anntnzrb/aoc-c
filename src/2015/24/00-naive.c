@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -18,28 +19,23 @@ typedef struct {
 	int next, left, sum;
 } Frame;
 
-static int partition(unsigned long long mask, int groups);
-static void first(int count, unsigned long long mask, int groups);
-static unsigned long long solve(int sum, int groups);
-
 static int weights[63], n, target;
 static unsigned long long best;
 
-static int
+static bool
 partition(unsigned long long mask, int groups)
 {
-	int packages[63], choices[63] = {0}, sums[3] = {0};
-	int count, i, group;
-
-	count = 0;
-	for (i = 0; i < n; i++)
+	int packages[63], choices[63] = {}, sums[3] = {};
+	int count = 0;
+	for (int i = 0; i < n; i++)
 		if (mask & (1ULL << i))
 			packages[count++] = weights[i];
-	i = 0;
+	int i = 0;
 	while (i >= 0) {
 		if (i == count)
-			return 1;
-		for (group = choices[i]; group < groups; group++)
+			return true;
+		int group = choices[i];
+		for (; group < groups; group++)
 			if (packages[i] <= target - sums[group])
 				break;
 		if (group < groups) {
@@ -51,19 +47,17 @@ partition(unsigned long long mask, int groups)
 			sums[choices[i] - 1] -= packages[i];
 		}
 	}
-	return 0;
+	return false;
 }
 
 static void
 first(int count, unsigned long long mask, int groups)
 {
-	Frame stack[64], *frame;
-	int depth, i;
-
+	Frame stack[64];
 	stack[0] = (Frame){0, 1, 0, count, 0};
-	depth = 0;
+	int depth = 0;
 	while (depth >= 0) {
-		frame = &stack[depth];
+		Frame *frame = &stack[depth];
 		if (!frame->left) {
 			if (frame->sum == target && frame->product < best &&
 			    partition(mask ^ frame->chosen, groups - 1))
@@ -75,7 +69,7 @@ first(int count, unsigned long long mask, int groups)
 			depth--;
 			continue;
 		}
-		i = frame->next++;
+		int i = frame->next++;
 		if (weights[i] <= target - frame->sum &&
 		    frame->product <= best / (unsigned int)weights[i])
 			stack[++depth] = (Frame){
@@ -88,14 +82,11 @@ first(int count, unsigned long long mask, int groups)
 static unsigned long long
 solve(int sum, int groups)
 {
-	unsigned long long mask;
-	int count;
-
 	if (sum % groups)
 		die("total weight is not divisible by group count");
 	target = sum / groups;
-	mask = (1ULL << n) - 1;
-	for (count = 1; count <= n; count++) {
+	unsigned long long mask = (1ULL << n) - 1;
+	for (int count = 1; count <= n; count++) {
 		best = ULLONG_MAX;
 		first(count, mask, groups);
 		if (best != ULLONG_MAX)
@@ -107,34 +98,27 @@ solve(int sum, int groups)
 int
 main(void)
 {
-	char *in, *p, *end;
-	unsigned long long part1, part2;
-	long value;
 	size_t len;
-	int sum;
-
-	in = slurp(stdin, &len);
-	p = in;
-	sum = 0;
+	char *in = slurp(stdin, &len), *p = in;
+	int sum = 0;
 	while (*p) {
 		if (isspace((unsigned char)*p)) {
 			p++;
 			continue;
 		}
 		errno = 0;
-		value = strtol(p, &end, 10);
+		char *end;
+		long value = strtol(p, &end, 10);
 		if (errno || end == p || n == 63 || value <= 0 ||
-		    value > INT_MAX - sum)
+		    ckd_add(&sum, sum, value))
 			die("invalid package weight or too many packages");
 		weights[n++] = (int)value;
-		sum += (int)value;
 		p = end;
 	}
 	free(in);
 	if (!n)
 		return EXIT_SUCCESS;
-	part1 = solve(sum, 3);
-	part2 = solve(sum, 4);
+	unsigned long long part1 = solve(sum, 3), part2 = solve(sum, 4);
 	if (printf("%llu\n%llu\n", part1, part2) < 0)
 		die("write answer:");
 	return EXIT_SUCCESS;
