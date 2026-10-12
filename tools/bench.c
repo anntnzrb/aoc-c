@@ -122,9 +122,13 @@ recording(Record *record, char *file, const char *std, char *cc)
 {
 	char git[] = "git", rev[] = "rev-parse", shortflag[] = "--short",
 	     head[] = "HEAD", status[] = "status", porcelain[] = "--porcelain",
-	     tracked[] = "--untracked-files=no", version[] = "--version";
+	     tracked[] = "--untracked-files=no", version[] = "--version",
+	     dashes[] = "--";
+	/* the CSV being appended is not a source change */
+	char *except = smprintf(":(exclude)%s", file);
 	char *rev_cmd[] = {git, rev, shortflag, head, NULL};
-	char *status_cmd[] = {git, status, porcelain, tracked, NULL};
+	char *status_cmd[] = {git, status, porcelain, tracked, dashes, except,
+	                      NULL};
 	char *cc_cmd[] = {cc, version, NULL};
 	struct stat st;
 
@@ -158,6 +162,7 @@ recording(Record *record, char *file, const char *std, char *cc)
 		record->text[i] = quoted(fields[i]);
 	free(commit);
 	free(dirty);
+	free(except);
 	free(id);
 	free(os);
 	free(cpu);
