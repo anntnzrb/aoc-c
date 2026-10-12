@@ -12,6 +12,7 @@ static void test_slurp_empty(void);
 static void test_slurp_multichunk(void);
 static void test_puzzleday(void);
 static void test_nameid(void);
+static void test_nameid_reject(void);
 static void test_nextperm(void);
 
 static void
@@ -80,10 +81,8 @@ test_puzzleday(void)
 static void
 test_nameid(void)
 {
-	char names[2][64], name[65];
-	size_t n = 0, i;
-	pid_t pid;
-	int status;
+	char names[2][64], name[64];
+	size_t n = 0;
 
 	assert(nameid(names, &n, LEN(names), "a") == 0 && n == 1);
 	memset(name, 'b', sizeof(name) - 1);
@@ -93,7 +92,17 @@ test_nameid(void)
 	assert(names[1][0] == 'b' && strlen(names[1]) == 63);
 	assert(nameid(names, &n, LEN(names), "a") == 0 && n == 2);
 	assert(!strcmp(names[0], "a"));
-	name[63] = 'b';
+}
+
+static void
+test_nameid_reject(void)
+{
+	char names[2][64] = {"a", "b"}, name[65];
+	size_t n = 2, i;
+	pid_t pid;
+	int status;
+
+	memset(name, 'b', sizeof(name) - 1);
 	name[64] = '\0';
 	for (i = 0; i < 2; i++) {
 		if ((pid = fork()) < 0)
@@ -136,6 +145,7 @@ main(void)
 	test_slurp_multichunk();
 	test_puzzleday();
 	test_nameid();
+	test_nameid_reject();
 	test_nextperm();
 	puts("lib: ok");
 	return EXIT_SUCCESS;
