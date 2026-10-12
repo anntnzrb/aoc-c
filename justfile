@@ -20,8 +20,9 @@ std := "-std=c23 -pedantic-errors -D_POSIX_C_SOURCE=200809L"
 # -Wno-pre-c23-compat: C23 features need not compile as older C standards.
 # -Wno-pre-c11-compat: compatibility with standards older than C23 is not a goal.
 # -Wno-disabled-macro-expansion: glibc's C23 const-safe string macros self-refer.
-# Declarations now belong at first use, so omit -Wdeclaration-after-statement.
-warn := "-Weverything -Werror -Wno-padded -Wno-unsafe-buffer-usage -Wno-pre-c11-compat -Wno-pre-c23-compat -Wno-disabled-macro-expansion -Wno-implicit-void-ptr-cast"
+# -Wno-declaration-after-statement: first-use declarations need not support C89.
+# -Wno-c++98-compat: clang diagnoses C23 constexpr in a C++ warning group.
+warn := "-Weverything -Werror -Wno-padded -Wno-unsafe-buffer-usage -Wno-pre-c11-compat -Wno-pre-c23-compat -Wno-disabled-macro-expansion -Wno-implicit-void-ptr-cast -Wno-declaration-after-statement -Wno-c++98-compat"
 cflags := std + " " + warn + " -Iinclude -Itools"
 
 # ASan's runtime hangs at startup on macOS 27 (Apple and nixpkgs clang
