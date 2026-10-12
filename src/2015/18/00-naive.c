@@ -13,27 +13,18 @@
 
 #include "aoc.h"
 
-static int neighbors(const unsigned char *grid, int width, int height, int x,
-                     int y);
-static void evolve(const unsigned char *grid, unsigned char *next, int width,
-                   int height);
-static int rows(const char *in, int width);
-static void corners(unsigned char *grid, int width, int height);
-static long long simulate(const char *in, size_t len, int stuck);
-
 static int
 neighbors(const unsigned char *grid, int width, int height, int x, int y)
 {
-	int dx, dy, nx, ny, count = 0;
-	size_t i;
+	int count = 0;
 
-	for (dy = -1; dy <= 1; dy++) {
-		for (dx = -1; dx <= 1; dx++) {
-			nx = x + dx;
-			ny = y + dy;
+	for (int dy = -1; dy <= 1; dy++) {
+		for (int dx = -1; dx <= 1; dx++) {
+			int nx = x + dx, ny = y + dy;
 			if ((dx || dy) && nx >= 0 && nx < width && ny >= 0 &&
 			    ny < height) {
-				i = ((size_t)ny * (size_t)width) + (size_t)nx;
+				size_t i =
+				    ((size_t)ny * (size_t)width) + (size_t)nx;
 				count += grid[i];
 			}
 		}
@@ -44,13 +35,10 @@ neighbors(const unsigned char *grid, int width, int height, int x, int y)
 static void
 evolve(const unsigned char *grid, unsigned char *next, int width, int height)
 {
-	int x, y, count;
-	size_t i;
-
-	for (y = 0; y < height; y++) {
-		for (x = 0; x < width; x++) {
-			count = neighbors(grid, width, height, x, y);
-			i = ((size_t)y * (size_t)width) + (size_t)x;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int count = neighbors(grid, width, height, x, y);
+			size_t i = ((size_t)y * (size_t)width) + (size_t)x;
 			next[i] = count == 3 || (grid[i] && count == 2);
 		}
 	}
@@ -59,18 +47,18 @@ evolve(const unsigned char *grid, unsigned char *next, int width, int height)
 static int
 rows(const char *in, int width)
 {
-	const char *p;
-	int x, height = 0;
+	int height = 0;
 
-	for (p = in; *p;) {
-		for (x = 0; x < width; x++, p++)
+	for (const char *p = in; *p;) {
+		for (int x = 0; x < width; x++, p++)
 			if (*p != '.' && *p != '#')
 				die("invalid grid row");
 		if (*p && *p != '\n')
 			die("invalid grid width");
 		if (*p)
 			p++;
-		height++;
+		if (++height > 100)
+			die("invalid grid height");
 	}
 	if (!height || height > 100)
 		die("invalid grid height");
@@ -89,47 +77,41 @@ corners(unsigned char *grid, int width, int height)
 }
 
 static long long
-simulate(const char *in, size_t len, int stuck)
+simulate(const char *in, size_t len, bool stuck)
 {
-	unsigned char *grid, *next, *swap;
-	const char *p;
-	char *end;
-	long steps = 100, step;
-	long long total = 0;
-	int width = 0, height;
-	size_t i, cells;
-
 	if (!len)
 		return 0;
+	long steps = 100;
 	if (strncmp(in, "steps ", 6) == 0) {
+		char *end;
 		steps = strtol(in + 6, &end, 10);
 		if (steps < 0 || steps > 10000 || *end != '\n')
 			die("invalid step count");
 		in = end + 1;
 	}
-	for (p = in; *p && *p != '\n'; p++)
-		width++;
-	if (!width || width > 100)
+	size_t w = strcspn(in, "\n");
+	if (!w || w > 100)
 		die("invalid grid width");
-	height = rows(in, width);
-	cells = (size_t)width * (size_t)height;
-	grid = ecalloc(cells, sizeof(*grid));
-	next = ecalloc(cells, sizeof(*next));
-	for (p = in, i = 0; *p; p++)
+	int width = (int)w, height = rows(in, width);
+	size_t cells = (size_t)width * (size_t)height, i = 0;
+	unsigned char *grid = ecalloc(cells, sizeof(*grid));
+	unsigned char *next = ecalloc(cells, sizeof(*next));
+	for (const char *p = in; *p; p++)
 		if (*p != '\n')
 			grid[i++] = *p == '#';
 	if (stuck)
 		corners(grid, width, height);
-	for (step = 0; step < steps; step++) {
+	for (long step = 0; step < steps; step++) {
 		evolve(grid, next, width, height);
 		if (stuck)
 			corners(next, width, height);
-		swap = grid;
+		unsigned char *swap = grid;
 		grid = next;
 		next = swap;
 	}
-	for (i = 0; i < cells; i++)
-		total += grid[i];
+	long long total = 0;
+	for (size_t cell = 0; cell < cells; cell++)
+		total += grid[cell];
 	free(next);
 	free(grid);
 	return total;
@@ -138,12 +120,11 @@ simulate(const char *in, size_t len, int stuck)
 int
 main(void)
 {
-	char *in;
 	size_t len;
+	char *in = slurp(stdin, &len);
 
-	in = slurp(stdin, &len);
-	if (printf("%lld\n%lld\n", simulate(in, len, 0),
-	           simulate(in, len, 1)) < 0)
+	if (printf("%lld\n%lld\n", simulate(in, len, false),
+	           simulate(in, len, true)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;

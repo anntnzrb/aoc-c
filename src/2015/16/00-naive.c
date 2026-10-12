@@ -13,40 +13,34 @@
 
 #include "aoc.h"
 
-static long number(const char *text, char **end);
-static void match(char *fact, int matches[2]);
-
 static long
 number(const char *text, char **end)
 {
-	long value;
-
 	errno = 0;
-	value = strtol(text, end, 10);
+	long value = strtol(text, end, 10);
 	if (errno || *end == text || value < 0)
 		die("invalid number");
 	return value;
 }
 
 static void
-match(char *fact, int matches[2])
+match(char *fact, bool matches[2])
 {
 	static const char *const names[] = {
 	    "children", "cats",     "samoyeds", "pomeranians", "akitas",
 	    "vizslas",  "goldfish", "trees",    "cars",        "perfumes"};
-	static const long sample[] = {3, 7, 2, 3, 0, 0, 5, 3, 2, 1};
-	char *colon, *end;
-	size_t i;
-	long value;
+	static constexpr long sample[] = {3, 7, 2, 3, 0, 0, 5, 3, 2, 1};
 
 	fact += strspn(fact, " ");
-	if (!(colon = strchr(fact, ':')))
+	char *colon = strchr(fact, ':');
+	if (!colon)
 		die("invalid fact");
 	*colon = 0;
-	value = number(colon + 1, &end);
+	char *end;
+	long value = number(colon + 1, &end);
 	if (*end)
 		die("trailing fact data");
-	for (i = 0; i < sizeof(sample) / sizeof(sample[0]); i++) {
+	for (size_t i = 0; i < sizeof(sample) / sizeof(sample[0]); i++) {
 		if (strcmp(fact, names[i]) != 0)
 			continue;
 		matches[0] &= value == sample[i];
@@ -64,22 +58,22 @@ match(char *fact, int matches[2])
 int
 main(void)
 {
-	char *line = NULL, *fact, *end;
-	size_t cap = 0, i;
-	long id, answer[2] = {0, 0};
-	int matches[2];
+	char *line = NULL;
+	size_t cap = 0;
+	long answer[2] = {};
 
 	while (getline(&line, &cap, stdin) != -1) {
 		if (strncmp(line, "Sue ", 4) != 0)
 			die("invalid Sue");
-		id = number(line + 4, &end);
+		char *end;
+		long id = number(line + 4, &end);
 		if (*end != ':' || !id)
 			die("invalid Sue id");
-		matches[0] = matches[1] = 1;
-		for (fact = strtok(end + 1, ",\n"); fact;
+		bool matches[2] = {true, true};
+		for (char *fact = strtok(end + 1, ",\n"); fact;
 		     fact = strtok(NULL, ",\n"))
 			match(fact, matches);
-		for (i = 0; i < 2; i++)
+		for (size_t i = 0; i < 2; i++)
 			if (matches[i] && !answer[i])
 				answer[i] = id;
 	}

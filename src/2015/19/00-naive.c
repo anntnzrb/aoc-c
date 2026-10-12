@@ -9,6 +9,7 @@
  * trade: exhaustive interval parsing proves the minimum without greedy
  *        reductions; binary helper productions carry zero replacement cost.
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,6 @@
 typedef struct {
 	char *text;
 } Molecule;
-
-static int compare(const void *a, const void *b);
-static size_t part1(const Rule *rules, size_t nrules, const char *molecule);
 
 static int
 compare(const void *a, const void *b)
@@ -35,16 +33,17 @@ static size_t
 part1(const Rule *rules, size_t nrules, const char *molecule)
 {
 	Molecule *made = NULL;
-	char *s;
-	const char *p;
-	size_t i, n = 0, distinct = 0, len = strlen(molecule), a, b, pos;
+	size_t n = 0, distinct = 0, len = strlen(molecule);
 
-	for (i = 0; i < nrules; i++) {
-		a = strlen(rules[i].from);
-		b = strlen(rules[i].to);
-		for (p = molecule; (p = strstr(p, rules[i].from)); p++) {
-			pos = (size_t)(p - molecule);
-			s = ecalloc(len - a + b + 1, 1);
+	for (size_t i = 0; i < nrules; i++) {
+		size_t a = strlen(rules[i].from), b = strlen(rules[i].to);
+		for (const char *p = molecule; (p = strstr(p, rules[i].from));
+		     p++) {
+			size_t pos = (size_t)(p - molecule), bytes;
+			if (ckd_add(&bytes, len - a, b) ||
+			    ckd_add(&bytes, bytes, 1))
+				die("replacement too large");
+			char *s = ecalloc(bytes, 1);
 			memcpy(s, molecule, pos);
 			memcpy(s + pos, rules[i].to, b);
 			memcpy(s + pos + b, p + a, len - pos - a + 1);
@@ -54,10 +53,10 @@ part1(const Rule *rules, size_t nrules, const char *molecule)
 	}
 	if (n)
 		qsort(made, n, sizeof(*made), compare);
-	for (i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		if (!i || strcmp(made[i].text, made[i - 1].text) != 0)
 			distinct++;
-	for (i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		free(made[i].text);
 	free(made);
 	return distinct;
@@ -66,12 +65,9 @@ part1(const Rule *rules, size_t nrules, const char *molecule)
 int
 main(void)
 {
-	Input data;
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	data = parse(in);
+	char *in = slurp(stdin, &len);
+	Input data = parse(in);
 	if (printf("%zu\n%zu\n",
 	           data.molecule ? part1(data.rules, data.count, data.molecule)
 	                         : 0,

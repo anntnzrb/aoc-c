@@ -23,6 +23,7 @@
  *           cpu med 587.0 us, rss 5652 KiB; 50 timing runs on Linux x86_64.
  */
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,19 +36,6 @@ typedef struct {
 	size_t position, removed;
 	char *text;
 } Edit;
-
-static char productchar(const Rule *rule, const char *s, size_t pos,
-                        size_t index);
-static void shifts(const Rule *rule, const char *s, size_t n, size_t *next);
-static Edit normalize(const Rule *rule, const char *s, size_t n, size_t pos,
-                      size_t *next, int *ready);
-static int compare(const void *a, const void *b);
-static uint64_t edithash(const Edit *edit);
-static size_t hashcount(const Edit *edits, size_t count);
-static size_t calibrate(const Rule *rules, size_t count, const char *s);
-static long long weight(const char *s);
-static int invariant(const Rule *rules, size_t count, long long *electron);
-static size_t fabricate(const Rule *rules, size_t count, const char *s);
 
 static char
 productchar(const Rule *rule, const char *s, size_t pos, size_t index)
@@ -64,13 +52,14 @@ productchar(const Rule *rule, const char *s, size_t pos, size_t index)
 static void
 shifts(const Rule *rule, const char *s, size_t n, size_t *next)
 {
-	size_t a = strlen(rule->from), b = strlen(rule->to), limit, q, t;
+	size_t a = strlen(rule->from), b = strlen(rule->to);
 
-	limit = MIN(n, n - a + b);
+	size_t limit = MIN(n, n - a + b);
 	next[limit] = limit;
-	for (q = limit; q > 0;) {
+	for (size_t q = limit; q > 0;) {
 		q--;
 		next[q] = next[q + 1];
+		size_t t;
 		if (b >= a) {
 			if (q < b - a)
 				continue;
@@ -85,11 +74,10 @@ shifts(const Rule *rule, const char *s, size_t n, size_t *next)
 
 static Edit
 normalize(const Rule *rule, const char *s, size_t n, size_t pos, size_t *next,
-          int *ready)
+          bool *ready)
 {
-	Edit edit;
 	size_t a = strlen(rule->from), b = strlen(rule->to), out = n - a + b;
-	size_t limit = MIN(n, out), first = pos, suffix, bytes, i;
+	size_t limit = MIN(n, out), first = pos;
 
 	while (first < limit && first - pos < b &&
 	       s[first] == rule->to[first - pos])
@@ -97,21 +85,19 @@ normalize(const Rule *rule, const char *s, size_t n, size_t pos, size_t *next,
 	if (first < limit && first - pos == b) {
 		if (!*ready) {
 			shifts(rule, s, n, next);
-			*ready = 1;
+			*ready = true;
 		}
 		first = next[first];
 	}
-	suffix = MIN(n - pos - a, limit - first);
+	size_t suffix = MIN(n - pos - a, limit - first);
 	/* The prefix cap prevents this scan from crossing before the edit. */
 	while (suffix < limit - first &&
 	       productchar(rule, s, pos, out - suffix - 1) ==
 	           s[n - suffix - 1])
 		suffix++;
-	edit.position = first;
-	edit.removed = n - suffix - first;
-	bytes = out - first - suffix;
-	edit.text = ecalloc(bytes + 1, 1);
-	for (i = 0; i < bytes; i++)
+	size_t bytes = out - first - suffix;
+	Edit edit = {first, n - suffix - first, ecalloc(bytes + 1, 1)};
+	for (size_t i = 0; i < bytes; i++)
 		edit.text[i] = productchar(rule, s, pos, first + i);
 	return edit;
 }
@@ -132,12 +118,12 @@ compare(const void *a, const void *b)
 static uint64_t
 edithash(const Edit *edit)
 {
-	const unsigned char *p;
 	uint64_t h = (uint64_t)edit->position,
 	         removed = (uint64_t)edit->removed;
 
 	h ^= ((removed & (UINT64_MAX >> 17)) << 17) | (removed >> 47);
-	for (p = (const unsigned char *)edit->text; *p; p++)
+	for (const unsigned char *p = (const unsigned char *)edit->text; *p;
+	     p++)
 		h = (((h & (UINT64_MAX >> 5)) << 5) | (h >> 59)) ^ *p;
 	return h ^ (h >> 32) ^ (h >> 16);
 }
@@ -145,10 +131,9 @@ edithash(const Edit *edit)
 static size_t
 hashcount(const Edit *edits, size_t count)
 {
-	size_t *table, capacity = 1, i, slot, distinct = 0;
-
 	if (!count)
 		return 0;
+	size_t capacity = 1;
 	while (capacity <= count) {
 		if (capacity > SIZE_MAX / 2)
 			die("too many calibration keys");
@@ -156,10 +141,11 @@ hashcount(const Edit *edits, size_t count)
 	}
 	if (capacity > SIZE_MAX / 2)
 		die("too many calibration keys");
-	table = ecalloc(capacity, 2 * sizeof(*table));
+	size_t *table = ecalloc(capacity, 2 * sizeof(*table));
 	capacity *= 2;
-	for (i = 0; i < count; i++) {
-		slot = (size_t)edithash(&edits[i]) & (capacity - 1);
+	size_t distinct = 0;
+	for (size_t i = 0; i < count; i++) {
+		size_t slot = (size_t)edithash(&edits[i]) & (capacity - 1);
 		while (table[slot] &&
 		       compare(&edits[i], &edits[table[slot] - 1]) != 0)
 			slot = (slot + 1) & (capacity - 1);
@@ -176,14 +162,17 @@ static size_t
 calibrate(const Rule *rules, size_t count, const char *s)
 {
 	Edit *edits = NULL;
-	const char *p;
-	size_t *next, n = strlen(s), r, k = 0, capacity = 0, i, distinct = 0;
-	int ready;
+	size_t n = strlen(s), k = 0, capacity = 0;
 
-	next = ecalloc(n + 1, sizeof(*next));
-	for (r = 0; r < count; r++) {
-		ready = 0;
-		for (p = s; (p = strstr(p, rules[r].from)); p++) {
+	size_t *next = ecalloc(n + 1, sizeof(*next));
+	for (size_t r = 0; r < count; r++) {
+		size_t a = strlen(rules[r].from), b = strlen(rules[r].to), out;
+		if (a > n)
+			continue;
+		if (ckd_add(&out, n - a, b) || out == SIZE_MAX)
+			die("replacement too large");
+		bool ready = false;
+		for (const char *p = s; (p = strstr(p, rules[r].from)); p++) {
 			if (k == capacity) {
 				if (capacity > SIZE_MAX / 2)
 					die("too many calibration edits");
@@ -195,8 +184,8 @@ calibrate(const Rule *rules, size_t count, const char *s)
 			                       (size_t)(p - s), next, &ready);
 		}
 	}
-	distinct = hashcount(edits, k);
-	for (i = 0; i < k; i++)
+	size_t distinct = hashcount(edits, k);
+	for (size_t i = 0; i < k; i++)
 		free(edits[i].text);
 	free(edits);
 	free(next);
@@ -207,10 +196,9 @@ static long long
 weight(const char *s)
 {
 	long long value = 0;
-	size_t width;
 
 	while (*s) {
-		width = 1;
+		size_t width = 1;
 		if (*s >= 'A' && *s <= 'Z' && s[1] >= 'a' && s[1] <= 'z')
 			width = 2;
 		if (width == 2 && ((s[0] == 'R' && s[1] == 'n') ||
@@ -218,29 +206,32 @@ weight(const char *s)
 			s += width;
 			continue;
 		}
-		value += width == 1 && *s == 'Y' ? -1 : 1;
+		if (ckd_add(&value, value, width == 1 && *s == 'Y' ? -1 : 1))
+			die("molecule weight too large");
 		s += width;
 	}
 	return value;
 }
 
-static int
+static bool
 invariant(const Rule *rules, size_t count, long long *electron)
 {
-	long long w;
-	size_t r;
-
 	*electron = LLONG_MAX;
-	for (r = 0; r < count; r++) {
+	for (size_t r = 0; r < count; r++) {
 		if (strchr(rules[r].to, 'e'))
-			return 0;
-		w = weight(rules[r].to);
+			return false;
+		long long w = weight(rules[r].to), difference;
 		if (strcmp(rules[r].from, "e") == 0) {
-			if (*electron != LLONG_MAX && *electron != w - 1)
-				return 0;
-			*electron = w - 1;
-		} else if (w - weight(rules[r].from) != 1) {
-			return 0;
+			if (ckd_sub(&difference, w, 1))
+				die("molecule weight too large");
+			if (*electron != LLONG_MAX && *electron != difference)
+				return false;
+			*electron = difference;
+		} else {
+			if (ckd_sub(&difference, w, weight(rules[r].from)))
+				die("molecule weight too large");
+			if (difference != 1)
+				return false;
 		}
 	}
 	return *electron != LLONG_MAX;
@@ -249,21 +240,22 @@ invariant(const Rule *rules, size_t count, long long *electron)
 static size_t
 fabricate(const Rule *rules, size_t count, const char *s)
 {
-	char names[256][64] = {{0}};
-	Grammar g;
-	size_t nnames = 0, *tokens;
-	long long electron, answer;
+	long long electron;
 
 	if (!invariant(rules, count, &electron))
 		return part2(rules, count, s);
-	tokens = ecalloc(strlen(s) + 1, sizeof(*tokens));
+	char names[256][64] = {};
+	size_t nnames = 0;
+	size_t *tokens = ecalloc(strlen(s) + 1, sizeof(*tokens));
 	(void)tokenize(s, names, &nnames, tokens, strlen(s) + 1);
-	g = makegrammar(rules, count, names, &nnames);
+	Grammar g = makegrammar(rules, count, names, &nnames);
 	free(g.rules);
 	free(tokens);
 	if (strcmp(s, "e") == 0)
 		return 0;
-	answer = weight(s) - electron;
+	long long answer;
+	if (ckd_sub(&answer, weight(s), electron))
+		die("molecule weight too large");
 	if (answer < 0)
 		return part2(rules, count, s);
 	return (size_t)answer;
@@ -272,12 +264,9 @@ fabricate(const Rule *rules, size_t count, const char *s)
 int
 main(void)
 {
-	Input data;
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	data = parse(in);
+	char *in = slurp(stdin, &len);
+	Input data = parse(in);
 	if (printf("%zu\n%zu\n",
 	           data.molecule
 	               ? calibrate(data.rules, data.count, data.molecule)

@@ -11,26 +11,22 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static int nextcap(char **p);
-static void solve(char *in, long long *total, long long *minimal);
-
 static int
 nextcap(char **p)
 {
-	char *end;
-	long cap;
-
 	while (isspace((unsigned char)**p))
 		(*p)++;
 	if (!**p)
 		return 0;
 	errno = 0;
-	cap = strtol(*p, &end, 10);
+	char *end;
+	long cap = strtol(*p, &end, 10);
 	if (*p == end || errno == ERANGE || cap <= 0 || cap > INT_MAX)
 		die("invalid container capacity");
 	*p = end;
@@ -41,9 +37,9 @@ static void
 solve(char *in, long long *total, long long *minimal)
 {
 	long long ways[151] = {1}, fewest[151] = {1};
-	int best[151], cap, v, used, top = 0;
+	int best[151], cap, top = 0;
 
-	for (v = 1; v <= 150; v++)
+	for (int v = 1; v <= 150; v++)
 		best[v] = 151;
 	best[0] = 0;
 	while ((cap = nextcap(&in))) {
@@ -51,14 +47,17 @@ solve(char *in, long long *total, long long *minimal)
 			continue;
 		top = MIN(150, top + cap);
 		/* Descending volumes prevent using this container twice. */
-		for (v = top; v >= cap; v--) {
-			ways[v] += ways[v - cap];
-			used = best[v - cap] + 1;
+		for (int v = top; v >= cap; v--) {
+			if (ckd_add(&ways[v], ways[v], ways[v - cap]))
+				die("too many combinations");
+			int used = best[v - cap] + 1;
 			if (used < best[v]) {
 				best[v] = used;
 				fewest[v] = fewest[v - cap];
 			} else if (used == best[v]) {
-				fewest[v] += fewest[v - cap];
+				if (ckd_add(&fewest[v], fewest[v],
+				            fewest[v - cap]))
+					die("too many minimal combinations");
 			}
 		}
 	}
@@ -69,11 +68,10 @@ solve(char *in, long long *total, long long *minimal)
 int
 main(void)
 {
-	char *in;
 	size_t len;
+	char *in = slurp(stdin, &len);
 	long long total = 0, minimal = 0;
 
-	in = slurp(stdin, &len);
 	if (len)
 		solve(in, &total, &minimal);
 	if (printf("%lld\n%lld\n", total, minimal) < 0)
