@@ -7,14 +7,11 @@
  * trade: count both lengths directly without materializing decoded strings
  */
 #include <ctype.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
-
-static size_t escape(const char *in, size_t len);
-static size_t part1(const char *in, size_t len);
-static size_t part2(const char *in, size_t len);
 
 static size_t
 escape(const char *in, size_t len)
@@ -60,18 +57,20 @@ part1(const char *in, size_t len)
 static size_t
 part2(const char *in, size_t len)
 {
-	size_t i, code, encoded;
+	size_t code = 0, encoded = 0;
 
-	code = encoded = 0;
-	for (i = 0; i < len;) {
+	for (size_t i = 0; i < len;) {
 		if (isspace((unsigned char)in[i])) {
 			i++;
 			continue;
 		}
-		encoded += 2;
+		if (ckd_add(&encoded, encoded, 2))
+			die("encoded length overflow");
 		while (i < len && in[i] != '\n' && in[i] != '\r') {
 			code++;
-			encoded += in[i] == '"' || in[i] == '\\' ? 2 : 1;
+			if (ckd_add(&encoded, encoded,
+			            in[i] == '"' || in[i] == '\\' ? 2 : 1))
+				die("encoded length overflow");
 			i++;
 		}
 	}
