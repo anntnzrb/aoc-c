@@ -9,9 +9,6 @@
 
 #include "aoc.h"
 
-static long long part1(const char *in, size_t len);
-static long long part2(const char *in, size_t len);
-
 static long long
 part1(const char *in, size_t len)
 {
