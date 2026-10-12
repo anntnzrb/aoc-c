@@ -6,6 +6,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,19 +19,12 @@ typedef struct {
 	long long offset;
 } Instruction;
 
-static long long offset(const char *text);
-static Instruction instruction(const char *line);
-static Instruction *parse(char *in, size_t *count);
-static long long run(const Instruction *code, size_t count, long long a);
-
 static long long
 offset(const char *text)
 {
 	char *end;
-	long long value;
-
 	errno = 0;
-	value = strtoll(text, &end, 10);
+	long long value = strtoll(text, &end, 10);
 	if (errno || end == text || *end || (*text != '+' && *text != '-'))
 		die("invalid jump offset");
 	return value;
@@ -39,16 +33,14 @@ offset(const char *text)
 static Instruction
 instruction(const char *line)
 {
-	Instruction ins;
-	const char *arg;
-
 	if (strlen(line) < 5 || line[3] != ' ')
 		die("invalid instruction");
+	Instruction ins;
 	memcpy(ins.op, line, 3);
 	ins.op[3] = '\0';
 	ins.reg = 0;
 	ins.offset = 1;
-	arg = line + 4;
+	const char *arg = line + 4;
 	if (strcmp(ins.op, "jmp") == 0) {
 		ins.offset = offset(arg);
 		return ins;
@@ -74,15 +66,17 @@ static Instruction *
 parse(char *in, size_t *count)
 {
 	Instruction *code = NULL;
-	const char *line;
 	char *save;
 	size_t cap = 0;
 
 	*count = 0;
-	for (line = strtok_r(in, "\n", &save); line;
+	for (const char *line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
 		if (*count == cap) {
-			cap = cap ? cap * 2 : 64;
+			if (!cap)
+				cap = 64;
+			else if (ckd_mul(&cap, cap, 2))
+				die("program too long");
 			code = ereallocarray(code, cap, sizeof(*code));
 		}
 		code[(*count)++] = instruction(line);
@@ -95,24 +89,26 @@ parse(char *in, size_t *count)
 static long long
 run(const Instruction *code, size_t count, long long a)
 {
-	const Instruction *ins;
-	long long reg[2] = {a, 0}, pc = 0, step;
+	long long reg[2] = {a, 0}, pc = 0;
 
 	while (pc >= 0 && pc < (long long)count) {
-		ins = &code[pc];
-		step = 1;
+		const Instruction *ins = &code[pc];
+		long long step = 1;
 		if (strcmp(ins->op, "hlf") == 0)
 			reg[ins->reg] /= 2;
-		else if (strcmp(ins->op, "tpl") == 0)
-			reg[ins->reg] *= 3;
-		else if (strcmp(ins->op, "inc") == 0)
-			reg[ins->reg]++;
-		else if (strcmp(ins->op, "jmp") == 0 ||
-		         (strcmp(ins->op, "jie") == 0 &&
-		          reg[ins->reg] % 2 == 0) ||
-		         (strcmp(ins->op, "jio") == 0 && reg[ins->reg] == 1))
+		else if (strcmp(ins->op, "tpl") == 0) {
+			if (ckd_mul(&reg[ins->reg], reg[ins->reg], 3))
+				die("register overflow");
+		} else if (strcmp(ins->op, "inc") == 0) {
+			if (ckd_add(&reg[ins->reg], reg[ins->reg], 1))
+				die("register overflow");
+		} else if (strcmp(ins->op, "jmp") == 0 ||
+		           (strcmp(ins->op, "jie") == 0 &&
+		            reg[ins->reg] % 2 == 0) ||
+		           (strcmp(ins->op, "jio") == 0 && reg[ins->reg] == 1))
 			step = ins->offset;
-		pc += step;
+		if (ckd_add(&pc, pc, step))
+			die("jump overflow");
 	}
 	return reg[1];
 }
@@ -120,12 +116,9 @@ run(const Instruction *code, size_t count, long long a)
 int
 main(void)
 {
-	Instruction *code;
-	char *in;
 	size_t len, count;
-
-	in = slurp(stdin, &len);
-	code = parse(in, &count);
+	char *in = slurp(stdin, &len);
+	Instruction *code = parse(in, &count);
 	if (printf("%lld\n%lld\n", run(code, count, 0), run(code, count, 1)) <
 	    0)
 		die("printf:");

@@ -9,6 +9,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,13 +19,6 @@
 typedef struct {
 	int hp, mana, boss, shield, poison, recharge, spent;
 } State;
-
-static void effects(State *s);
-static int cast(State *s, size_t spell, int best);
-static void attack(State *s, int damage);
-static int fight(State initial, int damage, int hard);
-static int stat(const char *in, const char *label, int fallback);
-static int solve(const char *in, int hard);
 
 static void
 effects(State *s)
@@ -36,21 +30,22 @@ effects(State *s)
 		s->poison--;
 	}
 	if (s->recharge) {
-		s->mana += 101;
+		if (ckd_add(&s->mana, s->mana, 101))
+			die("mana overflow");
 		s->recharge--;
 	}
 }
 
-static int
+static bool
 cast(State *s, size_t spell, int best)
 {
-	static const int costs[] = {53, 73, 113, 173, 229};
+	static constexpr int costs[] = {53, 73, 113, 173, 229};
 
 	if (costs[spell] > s->mana || s->spent >= best - costs[spell])
-		return 0;
+		return false;
 	if ((spell == 2 && s->shield) || (spell == 3 && s->poison) ||
 	    (spell == 4 && s->recharge))
-		return 0;
+		return false;
 	s->mana -= costs[spell];
 	s->spent += costs[spell];
 	switch (spell) {
@@ -59,7 +54,8 @@ cast(State *s, size_t spell, int best)
 		break;
 	case 1:
 		s->boss -= 2;
-		s->hp += 2;
+		if (ckd_add(&s->hp, s->hp, 2))
+			die("hit points overflow");
 		break;
 	case 2:
 		s->shield = 6;
@@ -73,7 +69,7 @@ cast(State *s, size_t spell, int best)
 	default:
 		die("invalid spell");
 	}
-	return 1;
+	return true;
 }
 
 static void
@@ -88,16 +84,15 @@ attack(State *s, int damage)
 }
 
 static int
-fight(State initial, int damage, int hard)
+fight(State initial, int damage, bool hard)
 {
-	State *stack, s, next;
-	size_t n = 1, cap = 256, spell;
+	size_t n = 1, cap = 256;
 	int best = INT_MAX;
 
-	stack = ecalloc(cap, sizeof(*stack));
+	State *stack = ecalloc(cap, sizeof(*stack));
 	stack[0] = initial;
 	while (n) {
-		s = stack[--n];
+		State s = stack[--n];
 		if (s.spent >= best)
 			continue;
 		if (s.boss > 0) {
@@ -110,8 +105,8 @@ fight(State initial, int damage, int hard)
 			best = s.spent;
 			continue;
 		}
-		for (spell = 0; spell < 5; spell++) {
-			next = s;
+		for (size_t spell = 0; spell < 5; spell++) {
+			State next = s;
 			if (!cast(&next, spell, best))
 				continue;
 			attack(&next, damage);
@@ -132,16 +127,13 @@ fight(State initial, int damage, int hard)
 static int
 stat(const char *in, const char *label, int fallback)
 {
-	const char *p;
-	char *end;
-	long value;
-
-	p = strstr(in, label);
+	const char *p = strstr(in, label);
 	if (!p)
 		return fallback;
 	p += strlen(label);
+	char *end;
 	errno = 0;
-	value = strtol(p, &end, 10);
+	long value = strtol(p, &end, 10);
 	if (errno || p == end || (*end && *end != '\n') || value < 0 ||
 	    value > INT_MAX)
 		die("invalid combat stat: %s", label);
@@ -149,15 +141,13 @@ stat(const char *in, const char *label, int fallback)
 }
 
 static int
-solve(const char *in, int hard)
+solve(const char *in, bool hard)
 {
-	State s = {0};
-	int damage;
-
 	if (!*in)
 		return 0;
+	State s = {};
 	s.boss = stat(in, "Hit Points: ", 0);
-	damage = stat(in, "Damage: ", 0);
+	int damage = stat(in, "Damage: ", 0);
 	s.hp = stat(in, "Player Hit Points: ", 50);
 	s.mana = stat(in, "Player Mana: ", 500);
 	if (s.boss <= 0 || damage <= 0 || s.hp <= 0)
@@ -168,11 +158,9 @@ solve(const char *in, int hard)
 int
 main(void)
 {
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	if (printf("%d\n%d\n", solve(in, 0), solve(in, 1)) < 0)
+	char *in = slurp(stdin, &len);
+	if (printf("%d\n%d\n", solve(in, false), solve(in, true)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;

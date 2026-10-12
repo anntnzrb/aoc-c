@@ -23,31 +23,24 @@ typedef struct {
 	int cost, damage, armor;
 } Item;
 
-static int stat(char **in, const char *label);
-static void ringpairs(Item pairs[22]);
-static void thresholds(long long need[11], int hp, int damage, int armor);
-
-static const Item weapons[] = {
+static constexpr Item weapons[] = {
     {8, 4, 0}, {10, 5, 0}, {25, 6, 0}, {40, 7, 0}, {74, 8, 0}};
-static const Item armors[] = {{0, 0, 0},  {13, 0, 1}, {31, 0, 2},
-                              {53, 0, 3}, {75, 0, 4}, {102, 0, 5}};
-static const Item rings[] = {{0, 0, 0},  {25, 1, 0}, {50, 2, 0}, {100, 3, 0},
-                             {20, 0, 1}, {40, 0, 2}, {80, 0, 3}};
+static constexpr Item armors[] = {{0, 0, 0},  {13, 0, 1}, {31, 0, 2},
+                                  {53, 0, 3}, {75, 0, 4}, {102, 0, 5}};
+static constexpr Item rings[] = {{0, 0, 0},   {25, 1, 0}, {50, 2, 0},
+                                 {100, 3, 0}, {20, 0, 1}, {40, 0, 2},
+                                 {80, 0, 3}};
 
 static int
 stat(char **in, const char *label)
 {
-	const char *p;
-	char *end;
-	long value;
-	size_t len;
-
-	len = strlen(label);
+	size_t len = strlen(label);
 	if (strncmp(*in, label, len) != 0)
 		die("invalid boss stat label");
-	p = *in + len;
+	const char *p = *in + len;
+	char *end;
 	errno = 0;
-	value = strtol(p, &end, 10);
+	long value = strtol(p, &end, 10);
 	if (errno || p == end || value < 0 || value > INT_MAX ||
 	    (*end != '\n' && *end != '\0'))
 		die("invalid boss stat value");
@@ -58,10 +51,10 @@ stat(char **in, const char *label)
 static void
 ringpairs(Item pairs[22])
 {
-	size_t i, j, n = 0;
+	size_t n = 0;
 
-	for (i = 0; i < sizeof rings / sizeof *rings; i++)
-		for (j = i; j < sizeof rings / sizeof *rings; j++) {
+	for (size_t i = 0; i < sizeof rings / sizeof *rings; i++)
+		for (size_t j = i; j < sizeof rings / sizeof *rings; j++) {
 			if (i == j && i != 0)
 				continue;
 			pairs[n].cost = rings[i].cost + rings[j].cost;
@@ -74,13 +67,11 @@ ringpairs(Item pairs[22])
 static void
 thresholds(long long need[11], int hp, int damage, int armor)
 {
-	int defense, hit, turns;
-
-	for (defense = 0; defense < 11; defense++) {
-		hit = damage - defense;
+	for (int defense = 0; defense < 11; defense++) {
+		int hit = damage - defense;
 		if (hit < 1)
 			hit = 1;
-		turns = (99 / hit) + 1;
+		int turns = (99 / hit) + 1;
 		/* Minimum damage already wins when the boss dies in time. */
 		need[defense] =
 		    hp <= turns ? 0
@@ -91,34 +82,33 @@ thresholds(long long need[11], int hp, int damage, int armor)
 int
 main(void)
 {
-	char *in, *p;
-	Item pairs[22];
-	long long need[11];
-	size_t len, w, a, r;
-	int hp, damage, armor, cost, attack, defense, best = INT_MAX,
-	                                              worst = 0;
-
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len);
 	if (!len) {
 		free(in);
 		return EXIT_SUCCESS;
 	}
-	p = in;
-	hp = stat(&p, "Hit Points: ");
-	damage = stat(&p, "Damage: ");
-	armor = stat(&p, "Armor: ");
+	char *p = in;
+	int hp = stat(&p, "Hit Points: ");
+	int damage = stat(&p, "Damage: ");
+	int armor = stat(&p, "Armor: ");
 	if (!hp)
 		die("boss hit points must be positive");
 	free(in);
+	Item pairs[22];
 	ringpairs(pairs);
+	long long need[11];
 	thresholds(need, hp, damage, armor);
-	for (w = 0; w < sizeof weapons / sizeof *weapons; w++)
-		for (a = 0; a < sizeof armors / sizeof *armors; a++)
-			for (r = 0; r < sizeof pairs / sizeof *pairs; r++) {
-				cost = weapons[w].cost + armors[a].cost +
-				       pairs[r].cost;
-				attack = weapons[w].damage + pairs[r].damage;
-				defense = armors[a].armor + pairs[r].armor;
+	int best = INT_MAX, worst = 0;
+	for (size_t w = 0; w < sizeof weapons / sizeof *weapons; w++)
+		for (size_t a = 0; a < sizeof armors / sizeof *armors; a++)
+			for (size_t r = 0; r < sizeof pairs / sizeof *pairs;
+			     r++) {
+				int cost = weapons[w].cost + armors[a].cost +
+				           pairs[r].cost;
+				int attack =
+				    weapons[w].damage + pairs[r].damage;
+				int defense = armors[a].armor + pairs[r].armor;
 				if (attack >= need[defense]) {
 					if (cost < best)
 						best = cost;
