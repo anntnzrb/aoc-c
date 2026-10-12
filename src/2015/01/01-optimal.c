@@ -13,22 +13,26 @@
  * vectorization and it measured about 20,000 instructions more than
  * 00-naive.
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-#define CHUNK 65536
+static constexpr size_t CHUNK = 65536;
 
 int
 main(void)
 {
 	static char buf[CHUNK];
 	long long floor = 0, basement = 0, pos = 0;
-	size_t n, i;
+	size_t n;
 
 	while ((n = fread(buf, 1, sizeof(buf), stdin)) > 0) {
-		i = 0;
+		long long end;
+		if (ckd_add(&end, pos, n))
+			die("input too long");
+		size_t i = 0;
 		/* scalar only until the basement is found ... */
 		for (; i < n && !basement; i++)
 			if ((floor += (buf[i] == '(') - (buf[i] == ')')) == -1)
@@ -36,7 +40,7 @@ main(void)
 		/* ... then a branch-free sum the compiler can vectorize */
 		for (; i < n; i++)
 			floor += (buf[i] == '(') - (buf[i] == ')');
-		pos += (long long)n;
+		pos = end;
 	}
 	if (ferror(stdin))
 		die("fread:");

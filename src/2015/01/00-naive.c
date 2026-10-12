@@ -52,11 +52,12 @@ part2(const char *in, size_t len)
 int
 main(void)
 {
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	printf("%lld\n%lld\n", part1(in, len), part2(in, len));
+	char *in = slurp(stdin, &len);
+	if (len > LLONG_MAX)
+		die("input too long");
+	if (printf("%lld\n%lld\n", part1(in, len), part2(in, len)) < 0)
+		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
 }
