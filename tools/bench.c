@@ -114,7 +114,7 @@ cpuname(void)
 		die("bench: cpuinfo:");
 	free(line);
 	return cpu ? cpu : smprintf("unknown");
-#elif defined(__APPLE__)
+#elifdef __APPLE__
 	char prog[] = "sysctl", flag[] = "-n",
 	     key[] = "machdep.cpu.brand_string";
 	char *cmd[] = {prog, flag, key, NULL};
