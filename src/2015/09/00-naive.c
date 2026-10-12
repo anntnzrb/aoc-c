@@ -44,35 +44,36 @@ route(const Graph *g, const size_t *order)
 int
 main(void)
 {
-	Graph g = {0};
-	char from[64], to[64], *in, *line, *save, *endptr;
-	long long distance, best = LLONG_MAX, worst = -1, total;
-	size_t len, a, b, i, j, order[CITIES];
-	int end;
+	Graph g = {};
 
-	for (i = 0; i < CITIES; i++)
-		for (j = 0; j < CITIES; j++)
+	for (size_t i = 0; i < CITIES; i++)
+		for (size_t j = 0; j < CITIES; j++)
 			g.distance[i][j] = -1;
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len), *line, *save;
 	for (line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		end = 0;
+		char from[64], to[64];
+		int end = 0;
 		if (sscanf(line, "%63s to %63s = %n", from, to, &end) != 2 ||
 		    end == 0)
 			die("invalid distance");
 		errno = 0;
-		distance = strtoll(line + end, &endptr, 10);
+		char *endptr;
+		long long distance = strtoll(line + end, &endptr, 10);
 		if (errno || endptr == line + end || distance < 0 ||
 		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
-		a = nameid(g.names, &g.n, CITIES, from);
-		b = nameid(g.names, &g.n, CITIES, to);
+		size_t a = nameid(g.names, &g.n, CITIES, from);
+		size_t b = nameid(g.names, &g.n, CITIES, to);
 		g.distance[a][b] = g.distance[b][a] = distance;
 	}
-	for (i = 0; i < g.n; i++)
+	size_t order[CITIES];
+	for (size_t i = 0; i < g.n; i++)
 		order[i] = i;
+	long long best = LLONG_MAX, worst = -1;
 	do {
-		total = route(&g, order);
+		long long total = route(&g, order);
 		if (total >= 0) {
 			best = MIN(best, total);
 			worst = MAX(worst, total);

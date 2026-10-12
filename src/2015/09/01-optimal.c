@@ -29,36 +29,29 @@ typedef struct {
 	long long low, high;
 } Range;
 
-static void parse(Graph *g);
-static Range *table(size_t n, size_t states);
-static void extend(Range *dst, Range src, long long distance);
-static Range solve(const Graph *g);
-
 static void
 parse(Graph *g)
 {
-	char from[64], to[64], *in, *line, *save, *endptr;
-	long long distance;
-	size_t len, a, b, i, j;
-	int end;
-
-	for (i = 0; i < CITIES; i++)
-		for (j = 0; j < CITIES; j++)
+	for (size_t i = 0; i < CITIES; i++)
+		for (size_t j = 0; j < CITIES; j++)
 			g->distance[i][j] = -1;
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len), *line, *save;
 	for (line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		end = 0;
+		char from[64], to[64];
+		int end = 0;
 		if (sscanf(line, "%63s to %63s = %n", from, to, &end) != 2 ||
 		    end == 0)
 			die("invalid distance");
 		errno = 0;
-		distance = strtoll(line + end, &endptr, 10);
+		char *endptr;
+		long long distance = strtoll(line + end, &endptr, 10);
 		if (errno || endptr == line + end || distance < 0 ||
 		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
-		a = nameid(g->names, &g->n, CITIES, from);
-		b = nameid(g->names, &g->n, CITIES, to);
+		size_t a = nameid(g->names, &g->n, CITIES, from);
+		size_t b = nameid(g->names, &g->n, CITIES, to);
 		g->distance[a][b] = g->distance[b][a] = distance;
 	}
 	free(in);
@@ -131,11 +124,10 @@ solve(const Graph *g)
 int
 main(void)
 {
-	Graph g = {0};
-	Range result;
+	Graph g = {};
 
 	parse(&g);
-	result = solve(&g);
+	Range result = solve(&g);
 	if (result.high < 0)
 		die("no route visits every city");
 	if (printf("%lld\n%lld\n", result.low, result.high) < 0)
