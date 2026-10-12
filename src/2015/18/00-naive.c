@@ -57,8 +57,7 @@ rows(const char *in, int width)
 			die("invalid grid width");
 		if (*p)
 			p++;
-		if (++height > 100)
-			die("invalid grid height");
+		height++;
 	}
 	if (!height || height > 100)
 		die("invalid grid height");
@@ -92,10 +91,12 @@ simulate(const char *in, size_t len, bool stuck)
 			die("invalid step count");
 		in = end + 1;
 	}
-	size_t w = strcspn(in, "\n");
-	if (!w || w > 100)
+	int width = 0;
+	for (const char *p = in; *p && *p != '\n'; p++)
+		width++;
+	if (!width || width > 100)
 		die("invalid grid width");
-	int width = (int)w, height = rows(in, width);
+	int height = rows(in, width);
 	size_t cells = (size_t)width * (size_t)height, i = 0;
 	unsigned char *grid = ecalloc(cells, sizeof(*grid));
 	unsigned char *next = ecalloc(cells, sizeof(*next));
