@@ -38,6 +38,7 @@ parse(Graph *g)
 			g->distance[i][j] = -1;
 	size_t len;
 	char *in = slurp(stdin, &len), *line, *save;
+	long long largest = 0;
 	for (line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
 		char from[64], to[64];
@@ -54,8 +55,12 @@ parse(Graph *g)
 		size_t a = nameid(g->names, &g->n, CITIES, from);
 		size_t b = nameid(g->names, &g->n, CITIES, to);
 		g->distance[a][b] = g->distance[b][a] = distance;
+		largest = MAX(largest, distance);
 	}
 	free(in);
+	/* Every route has at most n - 1 edges; reserve LLONG_MAX. */
+	if (g->n > 1 && largest > (LLONG_MAX - 1) / (long long)(g->n - 1))
+		die("route distance overflow");
 }
 
 static Range *
@@ -79,9 +84,7 @@ extend(Range *dst, Range src, long long distance)
 {
 	if (src.high < 0 || distance < 0)
 		return;
-	long long high;
-	if (ckd_add(&high, src.high, distance) || high == LLONG_MAX)
-		die("route distance overflow");
+	long long high = src.high + distance;
 	dst->low = MIN(dst->low, src.low + distance);
 	dst->high = MAX(dst->high, high);
 }
