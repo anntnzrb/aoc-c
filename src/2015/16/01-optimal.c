@@ -8,32 +8,28 @@
  * rejected: just bench 16 50 (Linux), work instructions: fgets rows
  *           212757, getline rows 191077, naive 1019072; blocks 147039.
  */
-#include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-static long number(char **cursor);
-static int fact(char **cursor, int matches);
-static void row(char *p, long answer[2]);
-
 static long
 number(char **cursor)
 {
 	char *p = *cursor;
-	long value = 0, digit;
+	long value = 0;
 
 	while (*p == ' ')
 		p++;
 	if (*p < '0' || *p > '9')
 		die("invalid number");
 	do {
-		digit = *p++ - '0';
-		if (value > (LONG_MAX - digit) / 10)
+		long digit = *p++ - '0';
+		if (ckd_mul(&value, value, 10) ||
+		    ckd_add(&value, value, digit))
 			die("number too large");
-		value = (value * 10) + digit;
 	} while (*p >= '0' && *p <= '9');
 	*cursor = p;
 	return value;
@@ -42,9 +38,9 @@ number(char **cursor)
 static int
 fact(char **cursor, int matches)
 {
-	char *p = *cursor, *colon;
-	long value, ref;
-	int direction = 0, ranged;
+	char *p = *cursor;
+	long ref;
+	int direction = 0;
 
 	switch (*p) {
 	case 'a':
@@ -75,10 +71,12 @@ fact(char **cursor, int matches)
 	default:
 		die("unknown property");
 	}
-	if (!(colon = strchr(p, ':')))
+	char *colon = strchr(p, ':');
+	if (!colon)
 		die("invalid fact");
 	p = colon + 1;
-	value = number(&p);
+	long value = number(&p);
+	bool ranged;
 	if (direction > 0)
 		ranged = value > ref;
 	else if (direction < 0)
@@ -92,13 +90,12 @@ fact(char **cursor, int matches)
 static void
 row(char *p, long answer[2])
 {
-	long id;
 	int matches = 3;
 
 	if (strncmp(p, "Sue ", 4) != 0)
 		die("invalid Sue");
 	p += 4;
-	id = number(&p);
+	long id = number(&p);
 	if (*p++ != ':' || !id)
 		die("invalid Sue id");
 	while (matches && *p && *p != '\n') {
@@ -115,23 +112,23 @@ row(char *p, long answer[2])
 int
 main(void)
 {
-	char buffer[4096], *p, *newline;
-	size_t used = 0, got, left;
-	long answer[2] = {0, 0};
+	char buffer[4096];
+	size_t used = 0, got;
+	long answer[2] = {};
 
 	while ((
 	    got = fread(buffer + used, 1, sizeof(buffer) - used - 1, stdin))) {
 		used += got;
 		if (used < sizeof(buffer)) {
 			buffer[used] = 0;
-			p = buffer;
+			char *p = buffer, *newline;
 			while ((newline = memchr(
 			            p, '\n', used - (size_t)(p - buffer)))) {
 				*newline = 0;
 				row(p, answer);
 				p = newline + 1;
 			}
-			left = used - (size_t)(p - buffer);
+			size_t left = used - (size_t)(p - buffer);
 			memmove(buffer, p, left);
 			used = left;
 			if (used == sizeof(buffer) - 1)
