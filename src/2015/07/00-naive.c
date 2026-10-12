@@ -6,6 +6,7 @@
  * cost: time O(n^3), memory O(n), one parse and at most 2n circuit sweeps
  * trade: direct simulation; repeated sweeps and linear wire searches
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,19 +124,21 @@ solve(char *in, unsigned int *second)
 {
 	Gate *gates = NULL;
 	char *line, *save;
-	unsigned int first;
-	size_t n = 0, cap = 0, i;
+	size_t n = 0, cap = 0;
 
 	for (line = strtok_r(in, "\n", &save); line != NULL;
 	     line = strtok_r(NULL, "\n", &save)) {
 		if (n == cap) {
-			cap = cap ? cap * 2 : 16;
+			if (!cap)
+				cap = 16;
+			else if (ckd_mul(&cap, cap, 2))
+				die("too many gates");
 			gates = ereallocarray(gates, cap, sizeof(*gates));
 		}
 		gates[n++] = parse(line);
 	}
-	first = evaluate(gates, n);
-	for (i = 0; i < n; i++) {
+	unsigned int first = evaluate(gates, n);
+	for (size_t i = 0; i < n; i++) {
 		gates[i].ready = strcmp(gates[i].out, "b") == 0;
 		gates[i].value = gates[i].ready ? first : 0;
 	}

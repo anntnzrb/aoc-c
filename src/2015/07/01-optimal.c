@@ -12,6 +12,7 @@
  * (430690-430692), both fail misc-no-recursion. Naive: 205944872
  * (205944871-205944874). bench 7 50, Linux CPU 0, five paired counters.
  */
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -192,33 +193,36 @@ evaluate(Circuit *c, size_t id)
 int
 main(void)
 {
-	Circuit c = {0};
-	Gate *g;
-	char *in, *line, *save;
-	char a[] = "a", b[] = "b";
-	size_t len, i, target, override;
+	Circuit c = {};
+	size_t len;
+	char *in = slurp(stdin, &len);
 	unsigned int first = 0, second = 0;
 
-	in = slurp(stdin, &len);
 	if (len) {
 		c.cap = 16;
 		/* Even the shortest instruction needs six bytes for two names.
 		 */
-		while (c.cap < (len / 3) + 16)
-			c.cap *= 2;
+		size_t needed;
+		if (ckd_add(&needed, len / 3, 16))
+			die("too many gates");
+		while (c.cap < needed)
+			if (ckd_mul(&c.cap, c.cap, 2))
+				die("too many gates");
 		c.gates = ecalloc(c.cap, sizeof(*c.gates));
 		c.order = ecalloc(c.cap, sizeof(*c.order));
+		char *line, *save;
 		for (line = strtok_r(in, "\n", &save); line;
 		     line = strtok_r(NULL, "\n", &save))
 			parse(&c, line);
-		target = intern(&c, a);
-		override = intern(&c, b);
+		char a[] = "a", b[] = "b";
+		size_t target = intern(&c, a);
+		size_t override = intern(&c, b);
 		first = evaluate(&c, target);
 		c.gates[override].value = first;
-		for (i = 0; i < c.count; i++) {
+		for (size_t i = 0; i < c.count; i++) {
 			if (c.order[i] == override)
 				continue;
-			g = &c.gates[c.order[i]];
+			Gate *g = &c.gates[c.order[i]];
 			g->value = apply(g->op, cached(&c, g->left),
 			                 cached(&c, g->right));
 		}
