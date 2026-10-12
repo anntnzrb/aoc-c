@@ -55,11 +55,10 @@ gccwarn := "-O2 -D_FORTIFY_SOURCE=3 -Werror -Wall -Wextra -Wpedantic -Wshadow -W
 analyzer := "-Xanalyzer -analyzer-werror -Xanalyzer -analyzer-checker=security,unix,nullability,valist,optin.portability -Xanalyzer -analyzer-disable-checker=security.insecureAPI.DeprecatedOrUnsafeBufferHandling"
 
 # cppcheck, every check including inconclusive ones. Suppressed:
-#   variableScope: retained until the orchestrator migrates every day
 #   staticFunction in lib/aoc.c: public API that days call (or will)
 #   unmatchedSuppression in lib/aoc.c: the line above stops matching once
 #   every lib function has a caller outside lib (2015/06)
-cppcheck := "--std=c23 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=variableScope --suppress=staticFunction:lib/aoc.c --suppress=unmatchedSuppression:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
+cppcheck := "--std=c23 --enable=all --inconclusive --check-level=exhaustive --error-exitcode=1 --inline-suppr --quiet --suppress=missingIncludeSystem --suppress=checkersReport --suppress=staticFunction:lib/aoc.c --suppress=unmatchedSuppression:lib/aoc.c -D_POSIX_C_SOURCE=200809L -Iinclude -Itools"
 
 default:
     @just --list
