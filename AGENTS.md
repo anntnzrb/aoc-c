@@ -218,6 +218,7 @@ Advent of Code, every year from 2015, in C99 + POSIX.1-2008, [suckless style](ht
 - Tools are C programs in `tools/`; Nix, the `justfile` and dotfiles are the exempt files.
 - Shared code goes behind `include/aoc.h` (solutions and tools) and `tools/util.h` (tools only).
 - A suppression is a `-Wno-*` flag or a checker suppression with its reason next to it.
+- `.clang-tidy` disables `readability-implicit-bool-conversion`: C's `&&`, `||`, `!` and `?:` operate on int, so every C23 bool operand converts; the check models C++ and has no C option (clang-tidy 21).
 - Linux (x86_64) is the primary target and macOS (Apple silicon) must also pass.
 
 ## Layout

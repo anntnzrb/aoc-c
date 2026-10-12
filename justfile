@@ -47,6 +47,9 @@ release := "-O2 -D_FORTIFY_SOURCE=3 -fstack-protector-strong " + fortify
 # Declarations now belong at first use, so omit -Wdeclaration-after-statement.
 gccwarn := "-O2 -D_FORTIFY_SOURCE=3 -Werror -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wdouble-promotion -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2 -Wformat-signedness -Wnull-dereference -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wjump-misses-init -Wcast-qual -Wcast-align=strict -Wwrite-strings -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wold-style-definition -Wredundant-decls -Wnested-externs -Wundef -Wunused-macros -Wvla -Walloca -Wbad-function-cast -Wswitch-default -Wswitch-enum -Wfloat-equal -Wpointer-arith -Wtrampolines -Wstrict-overflow=2 -Winit-self -Wstack-protector -Warray-bounds=2 -Wshift-overflow=2 -Wstringop-overflow=4 -Wunsafe-loop-optimizations -fanalyzer"
 
+# .clang-tidy disables implicit-bool-conversion: C's &&, ||, ! and ?: operate
+# on int, so every C23 bool operand converts; the check models C++ and has
+# no C option (clang-tidy 21).
 # clang static analyzer: default checkers plus security, unix, nullability,
 # valist and portability; the memset_s/Annex K advice is off, as in .clang-tidy
 analyzer := "-Xanalyzer -analyzer-werror -Xanalyzer -analyzer-checker=security,unix,nullability,valist,optin.portability -Xanalyzer -analyzer-disable-checker=security.insecureAPI.DeprecatedOrUnsafeBufferHandling"

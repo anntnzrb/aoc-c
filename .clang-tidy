@@ -9,6 +9,8 @@
 #   magic-numbers: puzzle constants; prefer #define where it adds meaning
 # include-cleaner maps POSIX names (EINTR, sigset_t, ...) to glibc-private
 # headers (asm-generic/, bits/) that must never be included directly.
+# C's &&, ||, ! and ?: operate on int, so every C23 bool operand converts;
+# the check models C++ and has no C option (clang-tidy 21).
 Checks: >
   bugprone-*,
   cert-*,
@@ -22,6 +24,7 @@ Checks: >
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   -readability-braces-around-statements,
   -readability-identifier-length,
+  -readability-implicit-bool-conversion,
   -readability-isolate-declaration,
   -readability-magic-numbers
 WarningsAsErrors: '*'
