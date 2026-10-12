@@ -34,10 +34,35 @@ nextcap(char **p)
 }
 
 static void
+fold(int cap, int top, long long *ways, long long *fewest, int *best,
+     bool bounded)
+{
+	/* Descending volumes prevent using this container twice. */
+	for (int v = top; v >= cap; v--) {
+		if (bounded)
+			ways[v] += ways[v - cap];
+		else if (ckd_add(&ways[v], ways[v], ways[v - cap]))
+			die("too many combinations");
+		int used = best[v - cap] + 1;
+		if (used < best[v]) {
+			best[v] = used;
+			fewest[v] = fewest[v - cap];
+		} else if (used == best[v]) {
+			if (bounded)
+				fewest[v] += fewest[v - cap];
+			else if (ckd_add(&fewest[v], fewest[v],
+			                 fewest[v - cap]))
+				die("too many minimal combinations");
+		}
+	}
+}
+
+static void
 solve(char *in, long long *total, long long *minimal)
 {
 	long long ways[151] = {1}, fewest[151] = {1};
 	int best[151], cap, top = 0;
+	unsigned count = 0;
 
 	for (int v = 1; v <= 150; v++)
 		best[v] = 151;
@@ -46,19 +71,12 @@ solve(char *in, long long *total, long long *minimal)
 		if (cap > 150)
 			continue;
 		top = MIN(150, top + cap);
-		/* Descending volumes prevent using this container twice. */
-		for (int v = top; v >= cap; v--) {
-			if (ckd_add(&ways[v], ways[v], ways[v - cap]))
-				die("too many combinations");
-			int used = best[v - cap] + 1;
-			if (used < best[v]) {
-				best[v] = used;
-				fewest[v] = fewest[v - cap];
-			} else if (used == best[v]) {
-				if (ckd_add(&fewest[v], fewest[v],
-				            fewest[v - cap]))
-					die("too many minimal combinations");
-			}
+		/* At most 62 usable containers give <= 2^62 subsets. */
+		if (count < 62) {
+			count++;
+			fold(cap, top, ways, fewest, best, true);
+		} else {
+			fold(cap, top, ways, fewest, best, false);
 		}
 	}
 	*total = ways[150];

@@ -34,12 +34,20 @@ add(long long sum, long long value)
 static long long
 number(char **p)
 {
-	long long n = 0;
+	long long prefix = 0;
 	bool negative = **p == '-';
 	if (negative)
 		(*p)++;
 	if (**p < '0' || **p > '9')
 		die("invalid integer");
+	/* Three decimal digits fit; check only the unbounded tail. */
+	for (unsigned digits = 0; digits < 3; digits++) {
+		prefix = (prefix * 10) + (**p - '0');
+		(*p)++;
+		if (**p < '0' || **p > '9')
+			return negative ? -prefix : prefix;
+	}
+	long long n = negative ? -prefix : prefix;
 	do {
 		int digit = **p - '0';
 		if (ckd_mul(&n, n, 10) ||
@@ -104,8 +112,8 @@ main(void)
 			p++;
 			break;
 		case '"':
-			stack[depth].red |=
-			    redvalue(&p) && stack[depth].object;
+			if (redvalue(&p) && stack[depth].object)
+				stack[depth].red = true;
 			break;
 		default:
 			if (*p == '-' || (*p >= '0' && *p <= '9')) {
