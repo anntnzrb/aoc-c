@@ -25,7 +25,7 @@
 #include "aoc.h"
 
 enum { HP, MANA, BOSS, SHIELD, POISON, RECHARGE, NSTATS };
-enum { NBUCKETS = 230 };
+static constexpr size_t NBUCKETS = 230;
 
 typedef struct {
 	int v[NSTATS], spent;
@@ -42,19 +42,6 @@ typedef struct {
 	size_t size, used, capacity, count, live, heads[NBUCKETS];
 	int priority;
 } Search;
-
-static void effects(State *s);
-static int player(State *s, int hard);
-static int cast(State *s, size_t spell, int damage);
-static size_t hash(State s, size_t size);
-static void grow(Search *q);
-static int remember(Search *q, State s);
-static int estimate(State s);
-static void push(Search *q, State s);
-static State pop(Search *q);
-static int fight(State initial, int damage, int hard);
-static int stat(const char *in, const char *label, int fallback);
-static int solve(const char *in, int hard);
 
 static void
 effects(State *s)
@@ -120,9 +107,7 @@ static size_t
 hash(State s, size_t size)
 {
 	uint64_t h = 0;
-	size_t i;
-
-	for (i = 0; i < NSTATS; i++)
+	for (size_t i = 0; i < NSTATS; i++)
 		h = (h * 33 + (unsigned int)s.v[i]) & UINT32_MAX;
 	h = ((h ^ (h >> 16)) * UINT64_C(0x45d9f3b)) & UINT32_MAX;
 	return (size_t)(h ^ (h >> 16)) & (size - 1);
@@ -202,31 +187,27 @@ push(Search *q, State s)
 static State
 pop(Search *q)
 {
-	size_t bucket, node;
-
-	bucket = (size_t)q->priority % NBUCKETS;
+	size_t bucket = (size_t)q->priority % NBUCKETS;
 	while (!q->heads[bucket]) {
 		q->priority++;
 		bucket = (size_t)q->priority % NBUCKETS;
 	}
-	node = q->heads[bucket] - 1;
+	size_t node = q->heads[bucket] - 1;
 	q->heads[bucket] = q->nodes[node].next;
 	q->live--;
 	return q->nodes[node].s;
 }
 
 static int
-fight(State initial, int damage, int hard)
+fight(State initial, int damage, bool hard)
 {
-	Search q = {0};
-	State s, next;
-	size_t spell;
+	Search q = {};
 	int best = -1;
 
 	q.priority = estimate(initial);
 	push(&q, initial);
 	while (q.live) {
-		s = pop(&q);
+		State s = pop(&q);
 		if (!player(&s, hard))
 			continue;
 		if (s.v[BOSS] <= 0) {
@@ -235,8 +216,8 @@ fight(State initial, int damage, int hard)
 		}
 		if (!remember(&q, s))
 			continue;
-		for (spell = 0; spell < 5; spell++) {
-			next = s;
+		for (size_t spell = 0; spell < 5; spell++) {
+			State next = s;
 			if (cast(&next, spell, damage))
 				push(&q, next);
 		}
@@ -249,16 +230,13 @@ fight(State initial, int damage, int hard)
 static int
 stat(const char *in, const char *label, int fallback)
 {
-	const char *p;
-	char *end;
-	long value;
-
-	p = strstr(in, label);
+	const char *p = strstr(in, label);
 	if (!p)
 		return fallback;
 	p += strlen(label);
+	char *end;
 	errno = 0;
-	value = strtol(p, &end, 10);
+	long value = strtol(p, &end, 10);
 	if (errno || p == end || (*end && *end != '\n') || value < 0 ||
 	    value > INT_MAX)
 		die("invalid combat stat: %s", label);
@@ -266,15 +244,13 @@ stat(const char *in, const char *label, int fallback)
 }
 
 static int
-solve(const char *in, int hard)
+solve(const char *in, bool hard)
 {
-	State s = {0};
-	int damage;
-
 	if (!*in)
 		return 0;
+	State s = {};
 	s.v[BOSS] = stat(in, "Hit Points: ", 0);
-	damage = stat(in, "Damage: ", 0);
+	int damage = stat(in, "Damage: ", 0);
 	s.v[HP] = stat(in, "Player Hit Points: ", 50);
 	s.v[MANA] = stat(in, "Player Mana: ", 500);
 	if (s.v[BOSS] <= 0 || damage <= 0 || s.v[HP] <= 0)
@@ -285,11 +261,9 @@ solve(const char *in, int hard)
 int
 main(void)
 {
-	char *in;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	if (printf("%d\n%d\n", solve(in, 0), solve(in, 1)) < 0)
+	char *in = slurp(stdin, &len);
+	if (printf("%d\n%d\n", solve(in, false), solve(in, true)) < 0)
 		die("printf:");
 	free(in);
 	return EXIT_SUCCESS;
