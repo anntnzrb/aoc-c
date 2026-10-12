@@ -11,13 +11,14 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-#define CITIES 32
+static constexpr size_t CITIES = 32;
 
 typedef struct {
 	char names[CITIES][64];
@@ -29,36 +30,29 @@ typedef struct {
 	long long low, high;
 } Range;
 
-static void parse(Graph *g);
-static Range *table(size_t n, size_t states);
-static void extend(Range *dst, Range src, long long distance);
-static Range solve(const Graph *g);
-
 static void
 parse(Graph *g)
 {
-	char from[64], to[64], *in, *line, *save, *endptr;
-	long long distance;
-	size_t len, a, b, i, j;
-	int end;
-
-	for (i = 0; i < CITIES; i++)
-		for (j = 0; j < CITIES; j++)
+	for (size_t i = 0; i < CITIES; i++)
+		for (size_t j = 0; j < CITIES; j++)
 			g->distance[i][j] = -1;
-	in = slurp(stdin, &len);
+	size_t len;
+	char *in = slurp(stdin, &len), *line, *save;
 	for (line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
-		end = 0;
+		char from[64], to[64];
+		int end = 0;
 		if (sscanf(line, "%63s to %63s = %n", from, to, &end) != 2 ||
 		    end == 0)
 			die("invalid distance");
 		errno = 0;
-		distance = strtoll(line + end, &endptr, 10);
+		char *endptr;
+		long long distance = strtoll(line + end, &endptr, 10);
 		if (errno || endptr == line + end || distance < 0 ||
 		    endptr[strspn(endptr, " \t\r")] != 0)
 			die("invalid distance");
-		a = nameid(g->names, &g->n, CITIES, from);
-		b = nameid(g->names, &g->n, CITIES, to);
+		size_t a = nameid(g->names, &g->n, CITIES, from);
+		size_t b = nameid(g->names, &g->n, CITIES, to);
 		g->distance[a][b] = g->distance[b][a] = distance;
 	}
 	free(in);
@@ -67,16 +61,16 @@ parse(Graph *g)
 static Range *
 table(size_t n, size_t states)
 {
-	Range *dp;
-	size_t i;
-
-	dp = ecalloc(states, n * sizeof(*dp));
-	for (i = 0; i < states * n; i++) {
+	size_t count;
+	if (ckd_mul(&count, states, n))
+		die("route table too large");
+	Range *dp = ecalloc(count, sizeof(*dp));
+	for (size_t i = 0; i < count; i++) {
 		dp[i].low = LLONG_MAX;
 		dp[i].high = -1;
 	}
-	for (i = 0; i < n; i++)
-		dp[(((size_t)1 << i) * n) + i] = (Range){0, 0};
+	for (size_t i = 0; i < n; i++)
+		dp[(((size_t)1 << i) * n) + i] = (Range){};
 	return dp;
 }
 
@@ -85,42 +79,41 @@ extend(Range *dst, Range src, long long distance)
 {
 	if (src.high < 0 || distance < 0)
 		return;
-	if (distance >= LLONG_MAX - src.high)
+	long long high;
+	if (ckd_add(&high, src.high, distance) || high == LLONG_MAX)
 		die("route distance overflow");
 	dst->low = MIN(dst->low, src.low + distance);
-	dst->high = MAX(dst->high, src.high + distance);
+	dst->high = MAX(dst->high, high);
 }
 
 static Range
 solve(const Graph *g)
 {
-	Range *dp, *dst, src, result = {LLONG_MAX, -1};
-	long long distance;
-	size_t states, mask, i, j, bit;
+	Range result = {LLONG_MAX, -1};
 
 	if (g->n == 0) {
 		result.low = result.high = 0;
 		return result;
 	}
-	states = (size_t)1 << g->n;
-	dp = table(g->n, states);
-	for (mask = 1; mask < states; mask++) {
-		for (i = 0; i < g->n; i++) {
-			src = dp[(mask * g->n) + i];
+	size_t states = (size_t)1 << g->n;
+	Range *dp = table(g->n, states);
+	for (size_t mask = 1; mask < states; mask++) {
+		for (size_t i = 0; i < g->n; i++) {
+			Range src = dp[(mask * g->n) + i];
 			if (src.high < 0)
 				continue;
-			for (j = 0; j < g->n; j++) {
-				bit = (size_t)1 << j;
-				distance = g->distance[i][j];
+			for (size_t j = 0; j < g->n; j++) {
+				size_t bit = (size_t)1 << j;
+				long long distance = g->distance[i][j];
 				if ((mask & bit) || distance < 0)
 					continue;
-				dst = &dp[((mask | bit) * g->n) + j];
+				Range *dst = &dp[((mask | bit) * g->n) + j];
 				extend(dst, src, distance);
 			}
 		}
 	}
-	for (i = 0; i < g->n; i++) {
-		src = dp[((states - 1) * g->n) + i];
+	for (size_t i = 0; i < g->n; i++) {
+		Range src = dp[((states - 1) * g->n) + i];
 		result.low = MIN(result.low, src.low);
 		result.high = MAX(result.high, src.high);
 	}
@@ -131,11 +124,10 @@ solve(const Graph *g)
 int
 main(void)
 {
-	Graph g = {0};
-	Range result;
+	Graph g = {};
 
 	parse(&g);
-	result = solve(&g);
+	Range result = solve(&g);
 	if (result.high < 0)
 		die("no route visits every city");
 	if (printf("%lld\n%lld\n", result.low, result.high) < 0)

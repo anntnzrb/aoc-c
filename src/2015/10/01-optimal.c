@@ -9,28 +9,23 @@
  *           00 formatting every count 8437318901 (8437318848-8437319170).
  *           Linux, just bench 10 20; work is startup-subtracted, n=5.
  */
-#include <stdint.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static size_t putcount(char *out, size_t count);
-static size_t transform(const char *in, size_t len, char *out);
-static size_t finalsize(const char *in, size_t len);
-
 static size_t
 putcount(char *out, size_t count)
 {
-	size_t digits = 1, i, value;
-
 	if (count < 10) {
 		out[0] = (char)('0' + (int)count);
 		return 1;
 	}
-	for (value = count; value >= 10; value /= 10)
+	size_t digits = 1;
+	for (size_t value = count; value >= 10; value /= 10)
 		digits++;
-	i = digits;
+	size_t i = digits;
 	do {
 		out[--i] = (char)('0' + (int)(count % 10));
 		count /= 10;
@@ -41,9 +36,9 @@ putcount(char *out, size_t count)
 static size_t
 transform(const char *in, size_t len, char *out)
 {
-	size_t i, j, n = 0;
+	size_t n = 0;
 
-	for (i = 0; i < len; i = j) {
+	for (size_t i = 0, j; i < len; i = j) {
 		for (j = i + 1; j < len && in[j] == in[i]; j++)
 			;
 		n += putcount(out + n, j - i);
@@ -55,13 +50,16 @@ transform(const char *in, size_t len, char *out)
 static size_t
 finalsize(const char *in, size_t len)
 {
-	size_t i, j, count, n = 0;
+	size_t maximum;
+	if (ckd_mul(&maximum, len, 2))
+		die("sequence too long");
+	size_t n = 0;
 
-	for (i = 0; i < len; i = j) {
+	for (size_t i = 0, j; i < len; i = j) {
 		for (j = i + 1; j < len && in[j] == in[i]; j++)
 			;
 		n += 2;
-		for (count = j - i; count >= 10; count /= 10)
+		for (size_t count = j - i; count >= 10; count /= 10)
 			n++;
 	}
 	return n;
@@ -70,31 +68,31 @@ finalsize(const char *in, size_t len)
 int
 main(void)
 {
-	char *in, *out = NULL, *tmp;
-	size_t i, len, part1, incap, outcap = 0, tmpcap;
-	int round;
-
-	in = slurp(stdin, &len);
-	incap = len + 1;
+	size_t len;
+	char *in = slurp(stdin, &len), *out = NULL;
+	size_t incap;
+	if (ckd_add(&incap, len, 1))
+		die("sequence too long");
 	while (len && (in[len - 1] == '\n' || in[len - 1] == '\r'))
 		len--;
-	for (i = 0; i < len; i++)
+	for (size_t i = 0; i < len; i++)
 		if (in[i] < '0' || in[i] > '9')
 			die("expected digits");
-	part1 = len;
-	for (round = 0; len && round < 49; round++) {
-		if (len > SIZE_MAX / 2)
+	size_t part1 = len, outcap = 0;
+	for (int round = 0; len && round < 49; round++) {
+		size_t needed;
+		if (ckd_mul(&needed, len, 2))
 			die("sequence too long");
 		/* A run of k source digits emits at most 2k digits. */
-		if (!out || outcap < 2 * len) {
+		if (!out || outcap < needed) {
 			out = ereallocarray(out, len, 2);
-			outcap = 2 * len;
+			outcap = needed;
 		}
 		len = transform(in, len, out);
-		tmp = in;
+		char *tmp = in;
 		in = out;
 		out = tmp;
-		tmpcap = incap;
+		size_t tmpcap = incap;
 		incap = outcap;
 		outcap = tmpcap;
 		if (round == 39)
