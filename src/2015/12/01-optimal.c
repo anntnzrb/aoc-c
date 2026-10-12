@@ -64,10 +64,10 @@ redvalue(char **p)
 	}
 	if (!**p)
 		die("unterminated string");
-	red = *p - start == 3 && memcmp(start, "red", 3) == 0;
+	bool red = *p - start == 3 && memcmp(start, "red", 3) == 0;
 	(*p)++;
 	if (!red)
-		return 0;
+		return false;
 	while (isspace((unsigned char)**p))
 		(*p)++;
 	return **p != ':';
@@ -76,14 +76,12 @@ redvalue(char **p)
 int
 main(void)
 {
-	Frame *stack;
-	char *in, *p;
-	size_t len, depth = 0, cap = 64;
-	long long sum1 = 0, sum2 = 0, n;
-
-	in = slurp(stdin, &len);
-	stack = ecalloc(cap, sizeof(*stack));
-	for (p = in; *p;) {
+	size_t len;
+	char *in = slurp(stdin, &len);
+	size_t depth = 0, cap = 64;
+	Frame *stack = ecalloc(cap, sizeof(*stack));
+	long long sum1 = 0, sum2 = 0;
+	for (char *p = in; *p;) {
 		switch (*p) {
 		case '{':
 		case '[':
@@ -93,7 +91,7 @@ main(void)
 				    ereallocarray(stack, cap, sizeof(*stack));
 			}
 			stack[depth].sum = sum2;
-			stack[depth].red = 0;
+			stack[depth].red = false;
 			stack[depth].object = *p++ == '{';
 			break;
 		case '}':

@@ -59,15 +59,12 @@ space(char **p)
 		(*p)++;
 }
 
-static int
+static bool
 string(char **p)
 {
-	const char *start;
-	int red;
-
 	if (**p != '"')
 		die("expected string");
-	start = ++*p;
+	const char *start = ++*p;
 	while (**p && **p != '"') {
 		if (**p == '\\') {
 			(*p)++;
@@ -78,7 +75,7 @@ string(char **p)
 	}
 	if (!**p)
 		die("unterminated string");
-	red = *p - start == 3 && memcmp(start, "red", 3) == 0;
+	bool red = *p - start == 3 && memcmp(start, "red", 3) == 0;
 	(*p)++;
 	return red;
 }
@@ -127,13 +124,10 @@ part2(char *in, size_t len)
 int
 main(void)
 {
-	char *in;
-	long long sum1, sum2;
 	size_t len;
-
-	in = slurp(stdin, &len);
-	sum1 = part1(in);
-	sum2 = part2(in, len);
+	char *in = slurp(stdin, &len);
+	long long sum1 = part1(in);
+	long long sum2 = part2(in, len);
 	if (printf("%lld\n%lld\n", sum1, sum2) < 0)
 		die("printf:");
 	free(in);
