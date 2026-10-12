@@ -11,6 +11,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,16 +132,17 @@ run(const Instruction *code, size_t n, long long a)
 int
 main(void)
 {
+	size_t len;
+	char *in = slurp(stdin, &len), *save;
 	Instruction *code = NULL;
-	char *in, *save;
-	const char *line;
-	size_t len, n = 0, cap = 0;
-
-	in = slurp(stdin, &len);
-	for (line = strtok_r(in, "\n", &save); line;
+	size_t n = 0, cap = 0;
+	for (const char *line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
 		if (n == cap) {
-			cap = cap ? cap * 2 : 64;
+			if (!cap)
+				cap = 64;
+			else if (ckd_mul(&cap, cap, 2))
+				die("program too long");
 			code = ereallocarray(code, cap, sizeof(*code));
 		}
 		code[n++] = decode(line);

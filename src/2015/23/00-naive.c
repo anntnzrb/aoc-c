@@ -6,6 +6,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,15 +66,17 @@ static Instruction *
 parse(char *in, size_t *count)
 {
 	Instruction *code = NULL;
-	const char *line;
 	char *save;
 	size_t cap = 0;
 
 	*count = 0;
-	for (line = strtok_r(in, "\n", &save); line;
+	for (const char *line = strtok_r(in, "\n", &save); line;
 	     line = strtok_r(NULL, "\n", &save)) {
 		if (*count == cap) {
-			cap = cap ? cap * 2 : 64;
+			if (!cap)
+				cap = 64;
+			else if (ckd_mul(&cap, cap, 2))
+				die("program too long");
 			code = ereallocarray(code, cap, sizeof(*code));
 		}
 		code[(*count)++] = instruction(line);
@@ -86,24 +89,26 @@ parse(char *in, size_t *count)
 static long long
 run(const Instruction *code, size_t count, long long a)
 {
-	const Instruction *ins;
-	long long reg[2] = {a, 0}, pc = 0, step;
+	long long reg[2] = {a, 0}, pc = 0;
 
 	while (pc >= 0 && pc < (long long)count) {
-		ins = &code[pc];
-		step = 1;
+		const Instruction *ins = &code[pc];
+		long long step = 1;
 		if (strcmp(ins->op, "hlf") == 0)
 			reg[ins->reg] /= 2;
-		else if (strcmp(ins->op, "tpl") == 0)
-			reg[ins->reg] *= 3;
-		else if (strcmp(ins->op, "inc") == 0)
-			reg[ins->reg]++;
-		else if (strcmp(ins->op, "jmp") == 0 ||
-		         (strcmp(ins->op, "jie") == 0 &&
-		          reg[ins->reg] % 2 == 0) ||
-		         (strcmp(ins->op, "jio") == 0 && reg[ins->reg] == 1))
+		else if (strcmp(ins->op, "tpl") == 0) {
+			if (ckd_mul(&reg[ins->reg], reg[ins->reg], 3))
+				die("register overflow");
+		} else if (strcmp(ins->op, "inc") == 0) {
+			if (ckd_add(&reg[ins->reg], reg[ins->reg], 1))
+				die("register overflow");
+		} else if (strcmp(ins->op, "jmp") == 0 ||
+		           (strcmp(ins->op, "jie") == 0 &&
+		            reg[ins->reg] % 2 == 0) ||
+		           (strcmp(ins->op, "jio") == 0 && reg[ins->reg] == 1))
 			step = ins->offset;
-		pc += step;
+		if (ckd_add(&pc, pc, step))
+			die("jump overflow");
 	}
 	return reg[1];
 }
