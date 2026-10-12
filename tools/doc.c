@@ -17,21 +17,16 @@
 #include "aoc.h"
 #include "util.h"
 
-static int check(const char *path);
-
-static int
+static bool
 check(const char *path)
 {
 	static const char *const tags[] = {
 	    "approach:", "cost:", "trade:", "bound:", "rejected:"};
-	FILE *fp;
-	char *s, *end, *needle;
-	size_t len, i;
-	int failed = 0, optimal, found;
-
-	if (!(fp = fopen(path, "r")))
+	FILE *fp = fopen(path, "r");
+	if (!fp)
 		die("doc: fopen %s:", path);
-	s = slurp(fp, &len);
+	size_t len;
+	char *s = slurp(fp, &len), *end;
 	if (fclose(fp) == EOF)
 		die("doc: fclose %s:", path);
 	if (strncmp(s, "/*", 2) != 0 || !(end = strstr(s, "*/")))
@@ -39,16 +34,17 @@ check(const char *path)
 	*end = '\0';
 	/* 01 needs approach, cost, bound, rejected; the rest approach, cost,
 	 * trade: skip index 2 for 01 and 3-4 for everything else */
-	optimal = !strncmp(strrchr(path, '/') + 1, "01-", 3);
-	for (i = 0; i < LEN(tags); i++) {
+	bool optimal = !strncmp(strrchr(path, '/') + 1, "01-", 3);
+	bool failed = false;
+	for (size_t i = 0; i < LEN(tags); i++) {
 		if ((optimal && i == 2) || (!optimal && i > 2))
 			continue;
-		needle = smprintf("\n * %s", tags[i]);
-		found = strstr(s, needle) != NULL;
+		char *needle = smprintf("\n * %s", tags[i]);
+		bool found = strstr(s, needle) != NULL;
 		free(needle);
 		if (found)
 			continue;
-		failed = 1;
+		failed = true;
 		if (printf("FAIL %s: no header line starts with %s\n", path,
 		           tags[i]) < 0)
 			die("doc: printf:");
@@ -61,11 +57,9 @@ int
 main(void)
 {
 	glob_t g;
-	size_t i, n;
-	int failed = 0;
-
-	n = xglob("src/*/*/*.c", &g);
-	for (i = 0; i < n; i++)
+	size_t n = xglob("src/*/*/*.c", &g);
+	bool failed = false;
+	for (size_t i = 0; i < n; i++)
 		failed |= check(g.gl_pathv[i]);
 	globfree(&g);
 	return failed ? EXIT_FAILURE : EXIT_SUCCESS;

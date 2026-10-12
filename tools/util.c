@@ -22,22 +22,20 @@
 #include "aoc.h"
 #include "util.h"
 
-/* POSIX declares it but no header must; the C99 headers here do not */
+/* POSIX declares it but no header must; the headers here do not */
 extern char **environ;
 
 char *
 smprintf(const char *fmt, ...)
 {
 	va_list ap;
-	char *s;
-	int n;
 
 	va_start(ap, fmt);
-	n = vsnprintf(NULL, 0, fmt, ap);
+	int n = vsnprintf(NULL, 0, fmt, ap);
 	va_end(ap);
 	if (n < 0)
 		die("vsnprintf:");
-	s = ecalloc((size_t)n + 1, 1);
+	char *s = ecalloc((size_t)n + 1, 1);
 	va_start(ap, fmt);
 	n = vsnprintf(s, (size_t)n + 1, fmt, ap);
 	va_end(ap);
@@ -49,9 +47,8 @@ smprintf(const char *fmt, ...)
 size_t
 xglob(const char *pat, glob_t *g)
 {
-	int rc;
-
-	if ((rc = glob(pat, 0, NULL, g)) == GLOB_NOMATCH) {
+	int rc = glob(pat, 0, NULL, g);
+	if (rc == GLOB_NOMATCH) {
 		g->gl_pathc = 0;
 		g->gl_pathv = NULL;
 	} else if (rc != 0) {
@@ -63,10 +60,8 @@ xglob(const char *pat, glob_t *g)
 void
 mkdirp(const char *path)
 {
-	char *p, *s;
-
-	s = smprintf("%s", path);
-	for (p = s + 1; *p; p++) {
+	char *s = smprintf("%s", path);
+	for (char *p = s + 1; *p; p++) {
 		if (*p != '/')
 			continue;
 		*p = '\0';
@@ -82,9 +77,8 @@ mkdirp(const char *path)
 int
 xopen(const char *path, int flags)
 {
-	int fd;
-
-	if ((fd = open(path, flags | O_CLOEXEC, 0666)) < 0)
+	int fd = open(path, flags | O_CLOEXEC, 0666);
+	if (fd < 0)
 		die("open %s:", path);
 	return fd;
 }
@@ -103,7 +97,6 @@ spawn(char *const argv[], int fd0, int fd1, int fd2)
 	posix_spawn_file_actions_t fa;
 	posix_spawnattr_t sa;
 	sigset_t def;
-	pid_t pid;
 
 	/* dup2 clears close-on-exec on the target, so exactly 0-2 survive;
 	 * callers may ignore SIGPIPE, which a child must not inherit */
@@ -119,6 +112,7 @@ spawn(char *const argv[], int fd0, int fd1, int fd2)
 	    (errno = posix_spawnattr_setsigdefault(&sa, &def)) ||
 	    (errno = posix_spawnattr_setflags(&sa, POSIX_SPAWN_SETSIGDEF)))
 		die("posix_spawn setup:");
+	pid_t pid;
 	if (posix_spawnp(&pid, argv[0], &fa, &sa, argv, environ) != 0)
 		pid = -1;
 	(void)posix_spawn_file_actions_destroy(&fa);
@@ -126,13 +120,12 @@ spawn(char *const argv[], int fd0, int fd1, int fd2)
 	return pid;
 }
 
-int
+bool
 reap(pid_t pid)
 {
-	int st;
-
 	if (pid < 0)
-		return 1;
+		return true;
+	int st;
 	while (waitpid(pid, &st, 0) < 0)
 		if (errno != EINTR)
 			die("waitpid:");
@@ -140,24 +133,21 @@ reap(pid_t pid)
 }
 
 char *
-capture(char *const argv[], int fd0, int which, int *failed)
+capture(char *const argv[], int fd0, int which, bool *failed)
 {
-	FILE *fp;
-	char *s;
-	size_t len;
-	int p[2], null;
-	pid_t pid;
-
+	int p[2];
 	xpipe(p);
-	null = xopen("/dev/null", O_RDWR);
-	pid = spawn(argv, fd0 >= 0 ? fd0 : null, which == 1 ? p[1] : null,
-	            which == 2 ? p[1] : null);
+	int null = xopen("/dev/null", O_RDWR);
+	pid_t pid = spawn(argv, fd0 >= 0 ? fd0 : null,
+	                  which == 1 ? p[1] : null, which == 2 ? p[1] : null);
 	/* the parent's copy of the write end must go before reading */
 	if (close(p[1]) < 0 || close(null) < 0)
 		die("close:");
-	if (!(fp = fdopen(p[0], "r")))
+	FILE *fp = fdopen(p[0], "r");
+	if (!fp)
 		die("fdopen:");
-	s = slurp(fp, &len);
+	size_t len;
+	char *s = slurp(fp, &len);
 	if (fclose(fp) == EOF)
 		die("fclose:");
 	*failed = reap(pid);

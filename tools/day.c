@@ -10,12 +10,11 @@
 int
 main(int argc, char *argv[])
 {
-	const char *err;
-	int year, day;
-
 	if (argc != 3)
 		die("usage: day year day");
-	if ((err = puzzleday(argv[1], argv[2], &year, &day)))
+	int year, day;
+	const char *err = puzzleday(argv[1], argv[2], &year, &day);
+	if (err)
 		die("day: %s %s: %s", argv[1], argv[2], err);
 	if (printf("%02d\n", day) < 0)
 		die("day: printf:");

@@ -16,22 +16,17 @@
 #include "aoc.h"
 #include "util.h"
 
-static void clean(const char *root, const char *pat);
-static int build(const char *root, char *src, int argc, char **args);
-
 /* drop every earlier output of the selected days, so a deleted or renamed
  * solution cannot linger in bin/ and get tested or benched by mistake */
 static void
 clean(const char *root, const char *pat)
 {
 	glob_t g;
-	char *outs;
-	size_t i, n;
-
-	outs = pat ? smprintf("%s/%.*s*", root, (int)strlen(pat) - 7, pat + 4)
-	           : smprintf("%s/[0-9][0-9][0-9][0-9]/[0-9][0-9]/*", root);
-	n = xglob(outs, &g);
-	for (i = 0; i < n; i++)
+	char *outs =
+	    pat ? smprintf("%s/%.*s*", root, (int)strlen(pat) - 7, pat + 4)
+	        : smprintf("%s/[0-9][0-9][0-9][0-9]/[0-9][0-9]/*", root);
+	size_t n = xglob(outs, &g);
+	for (size_t i = 0; i < n; i++)
 		if (unlink(g.gl_pathv[i]) < 0)
 			die("build: unlink %s:", g.gl_pathv[i]);
 	globfree(&g);
@@ -39,25 +34,24 @@ clean(const char *root, const char *pat)
 }
 
 /* src/YEAR/DD/NN-slug.c -> ROOT/YEAR/DD/NN-slug */
-static int
+static bool
 build(const char *root, char *src, int argc, char **args)
 {
-	char o[] = "-o", *out, *cmd[128];
-	int i, failed;
-
-	out = smprintf("%s/%.*s", root, (int)strlen(src) - 6, src + 4);
+	char *out = smprintf("%s/%.*s", root, (int)strlen(src) - 6, src + 4);
 	*strrchr(out, '/') = '\0';
 	mkdirp(out);
 	out[strlen(out)] = '/';
+	char o[] = "-o", *cmd[128];
 	if (argc > (int)LEN(cmd) - 4)
 		die("build: too many compiler arguments");
-	for (i = 0; i < argc; i++)
+	int i = 0;
+	for (; i < argc; i++)
 		cmd[i] = args[i];
 	cmd[i] = o;
 	cmd[i + 1] = out;
 	cmd[i + 2] = src;
 	cmd[i + 3] = NULL;
-	failed = reap(spawn(cmd, -1, -1, -1));
+	bool failed = reap(spawn(cmd, -1, -1, -1));
 	if (printf(failed ? "FAIL build %s\n" : "%s\n", failed ? src : out) <
 	    0)
 		die("build: printf:");
@@ -68,25 +62,26 @@ build(const char *root, char *src, int argc, char **args)
 int
 main(int argc, char *argv[])
 {
-	glob_t g;
-	const char *err;
-	char *pat;
-	size_t i, n;
-	int year, day, all, failed = 0;
-
 	if (argc < 5)
 		die("usage: build OUTROOT YEAR DAY CC [ARG...]");
-	all = !strcmp(argv[2], "all") && !strcmp(argv[3], "all");
+	bool all = strcmp(argv[2], "all") == 0 && strcmp(argv[3], "all") == 0;
+	char *pat;
 	if (all)
 		pat = smprintf("src/*/*/*.c");
-	else if ((err = puzzleday(argv[2], argv[3], &year, &day)))
-		die("build: %s %s: %s", argv[2], argv[3], err);
-	else
+	else {
+		int year, day;
+		const char *err = puzzleday(argv[2], argv[3], &year, &day);
+		if (err)
+			die("build: %s %s: %s", argv[2], argv[3], err);
 		pat = smprintf("src/%d/%02d/*.c", year, day);
-	if (!(n = xglob(pat, &g)) && !all)
+	}
+	glob_t g;
+	size_t n = xglob(pat, &g);
+	if (!n && !all)
 		die("build: no solutions match %s", pat);
 	clean(argv[1], all ? NULL : pat);
-	for (i = 0; i < n; i++)
+	bool failed = false;
+	for (size_t i = 0; i < n; i++)
 		failed |= build(argv[1], g.gl_pathv[i], argc - 4, argv + 4);
 	globfree(&g);
 	free(pat);

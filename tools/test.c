@@ -16,11 +16,6 @@
 #include "aoc.h"
 #include "util.h"
 
-static void bars(char *s);
-static int compare(char *bin, const char *in, const char *want, size_t k);
-static int fixture(const char *in, const glob_t *bins);
-static int directory(const char *dir);
-
 static void
 bars(char *s)
 {
@@ -29,19 +24,18 @@ bars(char *s)
 			*s = '|';
 }
 
-static int
+static bool
 compare(char *bin, const char *in, const char *want, size_t k)
 {
 	char *cmd[] = {bin, NULL};
-	char *got, *p, *display;
-	int fd, failed;
-	size_t n = 0;
-
-	fd = xopen(in, O_RDONLY);
-	got = capture(cmd, fd, 1, &failed);
+	int fd = xopen(in, O_RDONLY);
+	bool failed;
+	char *got = capture(cmd, fd, 1, &failed);
 	if (close(fd) < 0)
 		die("test: close:");
-	for (p = got; *p && n < k; p++)
+	size_t n = 0;
+	char *p = got;
+	for (; *p && n < k; p++)
 		if (*p == '\n')
 			n++;
 	*p = '\0';
@@ -49,8 +43,8 @@ compare(char *bin, const char *in, const char *want, size_t k)
 		if (printf("FAIL %s %s: failed\n", bin, in) < 0)
 			die("test: printf:");
 	} else if (strcmp(got, want) != 0) {
-		failed = 1;
-		display = smprintf("%s", want);
+		failed = true;
+		char *display = smprintf("%s", want);
 		bars(display);
 		bars(got);
 		if (printf("FAIL %s %s: want '%s' got '%s'\n", bin, in,
@@ -64,33 +58,32 @@ compare(char *bin, const char *in, const char *want, size_t k)
 	return failed;
 }
 
-static int
+static bool
 fixture(const char *in, const glob_t *bins)
 {
-	FILE *fp;
-	char *out, *want;
-	size_t len, i, k = 0;
-	int failed = 0;
-
-	out = smprintf("%.*s.out", (int)(strlen(in) - 3), in);
-	if (!(fp = fopen(out, "r"))) {
+	char *out = smprintf("%.*s.out", (int)(strlen(in) - 3), in);
+	FILE *fp = fopen(out, "r");
+	if (!fp) {
 		if (printf("FAIL %s: open failed\n", out) < 0)
 			die("test: printf:");
 		free(out);
-		return 1;
+		return true;
 	}
-	want = slurp(fp, &len);
+	size_t len;
+	char *want = slurp(fp, &len);
 	if (fclose(fp) == EOF)
 		die("test: fclose:");
-	for (i = 0; i < len; i++)
+	size_t k = 0;
+	for (size_t i = 0; i < len; i++)
 		if (want[i] == '\n')
 			k++;
+	bool failed = false;
 	if (k == 0 || want[len - 1] != '\n') {
 		if (printf("FAIL %s: empty or no trailing newline\n", out) < 0)
 			die("test: printf:");
-		failed = 1;
+		failed = true;
 	} else {
-		for (i = 0; i < bins->gl_pathc; i++)
+		for (size_t i = 0; i < bins->gl_pathc; i++)
 			failed |= compare(bins->gl_pathv[i], in, want, k);
 	}
 	free(want);
@@ -98,24 +91,21 @@ fixture(const char *in, const glob_t *bins)
 	return failed;
 }
 
-static int
+static bool
 directory(const char *dir)
 {
 	glob_t bins, fixtures;
-	char *pat;
-	size_t i, n;
-	int failed = 0;
-
-	pat = smprintf("bin/%s/*", dir + strlen("tests/"));
+	char *pat = smprintf("bin/%s/*", dir + strlen("tests/"));
+	bool failed = false;
 	if (!xglob(pat, &bins)) {
 		if (printf("FAIL %s: no builds\n", dir) < 0)
 			die("test: printf:");
-		failed = 1;
+		failed = true;
 	}
 	free(pat);
 	pat = smprintf("%s/*.in", dir);
-	n = bins.gl_pathc ? xglob(pat, &fixtures) : 0;
-	for (i = 0; i < n; i++)
+	size_t n = bins.gl_pathc ? xglob(pat, &fixtures) : 0;
+	for (size_t i = 0; i < n; i++)
 		failed |= fixture(fixtures.gl_pathv[i], &bins);
 	if (n)
 		globfree(&fixtures);
@@ -125,17 +115,14 @@ directory(const char *dir)
 }
 
 int
-main(int argc, char *argv[])
+main(int argc, [[maybe_unused]] char *argv[])
 {
-	glob_t dirs;
-	size_t i, n;
-	int failed = 0;
-
-	(void)argv;
 	if (argc != 1)
 		die("usage: test");
-	n = xglob("tests/[0-9][0-9][0-9][0-9]/[0-9][0-9]/", &dirs);
-	for (i = 0; i < n; i++) {
+	glob_t dirs;
+	size_t n = xglob("tests/[0-9][0-9][0-9][0-9]/[0-9][0-9]/", &dirs);
+	bool failed = false;
+	for (size_t i = 0; i < n; i++) {
 		dirs.gl_pathv[i][strlen(dirs.gl_pathv[i]) - 1] = '\0';
 		failed |= directory(dirs.gl_pathv[i]);
 	}

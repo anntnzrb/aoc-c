@@ -11,7 +11,7 @@
  */
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,34 +27,13 @@
 typedef struct {
 	double wall_min, wall_med, cpu_med;
 	long rss, work_med, work_min, work_max, instr_med;
-	int perf;
+	bool perf;
 } Result;
 
 typedef struct {
 	FILE *file;
 	char *text[7];
 } Record;
-
-static int cmpdbl(const void *a, const void *b);
-static char *output(char *const cmd[], const char *input, int which,
-                    int *failed);
-static char *firstline(char *const cmd[]);
-static char *cpuname(void);
-static char *quoted(const char *s);
-static void recording(Record *record, char *file, const char *std, char *cc);
-static void recordrow(const Record *record, char *bin, size_t runs,
-                      const Result *result);
-static void run(char *bin, const char *input, double *wall, double *cpu);
-static void measure(char *bin, const char *input, size_t runs, Result *result);
-static int measured(char *bin, const char *input, size_t runs, Result *result);
-#ifdef __linux__
-static int cmplong(const void *a, const void *b);
-static int instructions(char *bin, const char *input, long *total);
-static void counters(char *bin, const char *input, Result *result);
-#endif
-static int benchmark(char *bin, const char *input, size_t runs,
-                     const char *oracle, const char *want,
-                     const Record *record);
 
 static int
 cmpdbl(const void *a, const void *b)
@@ -65,13 +44,10 @@ cmpdbl(const void *a, const void *b)
 }
 
 static char *
-output(char *const cmd[], const char *input, int which, int *failed)
+output(char *const cmd[], const char *input, int which, bool *failed)
 {
-	char *out;
-	int fd;
-
-	fd = xopen(input, O_RDONLY);
-	out = capture(cmd, fd, which, failed);
+	int fd = xopen(input, O_RDONLY);
+	char *out = capture(cmd, fd, which, failed);
 	if (close(fd) < 0)
 		die("bench: close:");
 	return out;
@@ -80,10 +56,8 @@ output(char *const cmd[], const char *input, int which, int *failed)
 static char *
 firstline(char *const cmd[])
 {
-	char *out;
-	int failed;
-
-	out = capture(cmd, -1, 1, &failed);
+	bool failed;
+	char *out = capture(cmd, -1, 1, &failed);
 	if (failed)
 		die("bench: %s failed", cmd[0]);
 	out[strcspn(out, "\r\n")] = '\0';
@@ -94,13 +68,13 @@ static char *
 cpuname(void)
 {
 #ifdef __linux__
-	FILE *file;
-	char *line = NULL, *value, *cpu = NULL;
-	size_t cap = 0;
-
-	if (!(file = fopen("/proc/cpuinfo", "r")))
+	FILE *file = fopen("/proc/cpuinfo", "r");
+	if (!file)
 		die("bench: /proc/cpuinfo:");
+	char *line = NULL, *cpu = NULL;
+	size_t cap = 0;
 	while (getline(&line, &cap, file) >= 0) {
+		char *value;
 		if (strncmp(line, "model name", 10) != 0 ||
 		    !(value = strchr(line, ':')))
 			continue;
@@ -128,12 +102,10 @@ cpuname(void)
 static char *
 quoted(const char *s)
 {
-	char *out, *p;
 	size_t n;
-
-	n = strlen(s);
-	out = ecalloc(n + 2, 2);
-	p = out;
+	if (ckd_add(&n, strlen(s), 2))
+		die("bench: quoted string too large");
+	char *out = ecalloc(n, 2), *p = out;
 	*p++ = '"';
 	for (; *s; s++) {
 		if (*s == '"')
@@ -154,13 +126,7 @@ recording(Record *record, char *file, const char *std, char *cc)
 	char *rev_cmd[] = {git, rev, shortflag, head, NULL};
 	char *status_cmd[] = {git, status, porcelain, tracked, NULL};
 	char *cc_cmd[] = {cc, version, NULL};
-	char date[21], *commit, *dirty, *os, *cpu, *compiler, *id;
-	const char *fields[7];
-	struct utsname host;
 	struct stat st;
-	const struct tm *utc;
-	time_t now;
-	size_t i;
 
 	if (!(record->file = fopen(file, "a")))
 		die("bench: %s:", file);
@@ -173,24 +139,22 @@ recording(Record *record, char *file, const char *std, char *cc)
 	        "cpu_med_us,rss_kib\n",
 	        record->file) == EOF)
 		die("bench: header:");
-	if ((now = time(NULL)) == (time_t)-1 || !(utc = gmtime(&now)) ||
+	char date[21];
+	struct utsname host;
+	const struct tm *utc;
+	time_t now = time(NULL);
+	if (now == (time_t)-1 || !(utc = gmtime(&now)) ||
 	    !strftime(date, sizeof(date), "%Y-%m-%dT%H:%M:%SZ", utc) ||
 	    uname(&host) < 0)
 		die("bench: metadata:");
-	commit = firstline(rev_cmd);
-	dirty = firstline(status_cmd);
-	id = smprintf("%s%s", commit, *dirty ? "+dirty" : "");
-	os = smprintf("%s %s %s", host.sysname, host.release, host.machine);
-	cpu = cpuname();
-	compiler = firstline(cc_cmd);
-	fields[0] = date;
-	fields[1] = id;
-	fields[2] = host.nodename;
-	fields[3] = os;
-	fields[4] = cpu;
-	fields[5] = compiler;
-	fields[6] = std;
-	for (i = 0; i < LEN(fields); i++)
+	char *commit = firstline(rev_cmd), *dirty = firstline(status_cmd);
+	char *id = smprintf("%s%s", commit, *dirty ? "+dirty" : "");
+	char *os =
+	    smprintf("%s %s %s", host.sysname, host.release, host.machine);
+	char *cpu = cpuname(), *compiler = firstline(cc_cmd);
+	const char *fields[] = {date,     id, host.nodename, os, cpu,
+	                        compiler, std};
+	for (size_t i = 0; i < LEN(fields); i++)
 		record->text[i] = quoted(fields[i]);
 	free(commit);
 	free(dirty);
@@ -203,27 +167,27 @@ recording(Record *record, char *file, const char *std, char *cc)
 static void
 recordrow(const Record *record, char *bin, size_t runs, const Result *result)
 {
-	char *path, *solution, *day, *name, *row = NULL;
-	const char *year;
-	FILE *stream;
-	size_t len = 0, i;
-	int y, d;
-
-	path = smprintf("%s", bin);
-	if (!(solution = strrchr(path, '/')))
+	char *path = smprintf("%s", bin);
+	char *solution = strrchr(path, '/');
+	if (!solution)
 		die("bench: invalid binary path: %s", bin);
 	*solution++ = '\0';
-	if (!(day = strrchr(path, '/')))
+	char *day = strrchr(path, '/');
+	if (!day)
 		die("bench: invalid binary path: %s", bin);
 	*day++ = '\0';
-	if (!(year = strrchr(path, '/')))
+	const char *year = strrchr(path, '/');
+	if (!year)
 		die("bench: invalid binary path: %s", bin);
 	year++;
+	int y, d;
 	(void)puzzleday(year, day, &y, &d);
-	name = quoted(solution);
-	if (!(stream = open_memstream(&row, &len)))
+	char *name = quoted(solution), *row = NULL;
+	size_t len = 0;
+	FILE *stream = open_memstream(&row, &len);
+	if (!stream)
 		die("bench: open_memstream:");
-	for (i = 0; i < LEN(record->text); i++)
+	for (size_t i = 0; i < LEN(record->text); i++)
 		if (fprintf(stream, "%s,", record->text[i]) < 0)
 			die("bench: row:");
 	if (fprintf(stream, "%d,%d,%s,%zu,", y, d, name, runs) < 0)
@@ -254,10 +218,7 @@ run(char *bin, const char *input, double *wall, double *cpu)
 	char *cmd[] = {bin, NULL};
 	struct rusage before, after;
 	struct timespec t0, t1;
-	int fd, null;
-
-	fd = xopen(input, O_RDONLY);
-	null = xopen("/dev/null", O_WRONLY);
+	int fd = xopen(input, O_RDONLY), null = xopen("/dev/null", O_WRONLY);
 	if (getrusage(RUSAGE_CHILDREN, &before) < 0 ||
 	    clock_gettime(CLOCK_MONOTONIC, &t0) < 0)
 		die("bench: clock:");
@@ -280,25 +241,19 @@ run(char *bin, const char *input, double *wall, double *cpu)
 static void
 measure(char *bin, const char *input, size_t runs, Result *result)
 {
-	struct rusage ru;
-	double *wall, *cpu;
-	const char *name;
-	size_t i;
-	long rss;
-
-	wall = ecalloc(runs, 2 * sizeof(*wall));
-	cpu = wall + runs;
-	for (i = 0; i < runs; i++)
+	double *wall = ecalloc(runs, 2 * sizeof(*wall)), *cpu = wall + runs;
+	for (size_t i = 0; i < runs; i++)
 		run(bin, input, &wall[i], &cpu[i]);
 	qsort(wall, runs, sizeof(*wall), cmpdbl);
 	qsort(cpu, runs, sizeof(*cpu), cmpdbl);
+	struct rusage ru;
 	if (getrusage(RUSAGE_CHILDREN, &ru) < 0)
 		die("bench: getrusage:");
-	rss = ru.ru_maxrss;
+	long rss = ru.ru_maxrss;
 #ifdef __APPLE__
 	rss /= 1024;
 #endif
-	name = strrchr(bin, '/');
+	const char *name = strrchr(bin, '/');
 	name = name ? name + 1 : bin;
 	if (printf("%-16s wall min %8.1f med %8.1f us  cpu med %8.1f us  "
 	           "rss %6ld KiB",
@@ -311,21 +266,19 @@ measure(char *bin, const char *input, size_t runs, Result *result)
 	free(wall);
 }
 
-static int
+static bool
 measured(char *bin, const char *input, size_t runs, Result *result)
 {
-	FILE *stream;
-	pid_t pid;
-	int fd[2];
-	size_t n;
-
 	if (fflush(stdout) == EOF)
 		die("bench: fflush:");
+	int fd[2];
 	xpipe(fd);
 	/* A fresh process isolates RUSAGE_CHILDREN's lifetime peak RSS. */
-	if ((pid = fork()) < 0)
+	pid_t pid = fork();
+	if (pid < 0)
 		die("bench: fork:");
 	if (pid == 0) {
+		FILE *stream;
 		if (close(fd[0]) < 0 || !(stream = fdopen(fd[1], "w")))
 			die("bench: pipe:");
 		measure(bin, input, runs, result);
@@ -334,9 +287,10 @@ measured(char *bin, const char *input, size_t runs, Result *result)
 			die("bench: write measurement:");
 		_exit(0);
 	}
+	FILE *stream;
 	if (close(fd[1]) < 0 || !(stream = fdopen(fd[0], "r")))
 		die("bench: pipe:");
-	n = fread(result, sizeof(*result), 1, stream);
+	size_t n = fread(result, sizeof(*result), 1, stream);
 	if (ferror(stream) || fclose(stream) == EOF)
 		die("bench: read measurement:");
 	return reap(pid) || n != 1;
@@ -351,31 +305,28 @@ cmplong(const void *a, const void *b)
 	return (*x > *y) - (*x < *y);
 }
 
-static int
+static bool
 instructions(char *bin, const char *input, long *total)
 {
 	char prog[] = "perf", stat[] = "stat", sep[] = "-x,", event[] = "-e",
 	     user[] = "instructions:u", dash[] = "--";
 	char *cmd[] = {prog, stat, sep, event, user, dash, bin, NULL};
-	char *out, *line, *end;
-	long n;
-	int failed, found = 0;
-
-	out = output(cmd, input, 2, &failed);
+	bool failed, found = false;
+	char *out = output(cmd, input, 2, &failed);
 	*total = 0;
-	for (line = strtok(out, "\n"); line && !failed;
+	for (char *line = strtok(out, "\n"); line && !failed;
 	     line = strtok(NULL, "\n")) {
 		errno = 0;
-		n = strtol(line, &end, 10);
+		char *end;
+		long n = strtol(line, &end, 10);
 		if (end == line || *end != ',' || n < 0 ||
 		    !strstr(end, "instructions"))
 			continue;
-		if (errno || n > LONG_MAX - *total) {
-			failed = 1;
+		if (errno || ckd_add(total, *total, n)) {
+			failed = true;
 			break;
 		}
-		*total += n;
-		found = 1;
+		found = true;
 	}
 	free(out);
 	return !failed && found;
@@ -385,9 +336,8 @@ static void
 counters(char *bin, const char *input, Result *result)
 {
 	long full[5], work[5], empty;
-	size_t i;
-
-	for (i = 0; i < LEN(full); i++) {
+	size_t i = 0;
+	for (; i < LEN(full); i++) {
 		if (!instructions(bin, input, &full[i]) ||
 		    !instructions(bin, "/dev/null", &empty))
 			break;
@@ -396,7 +346,7 @@ counters(char *bin, const char *input, Result *result)
 	if (i == LEN(full)) {
 		qsort(full, LEN(full), sizeof(*full), cmplong);
 		qsort(work, LEN(work), sizeof(*work), cmplong);
-		result->perf = 1;
+		result->perf = true;
 		result->instr_med = full[2];
 		result->work_med = work[2];
 		result->work_min = work[0];
@@ -410,29 +360,28 @@ counters(char *bin, const char *input, Result *result)
 }
 #endif
 
-static int
+static bool
 benchmark(char *bin, const char *input, size_t runs, const char *oracle,
           const char *want, const Record *record)
 {
-	char *cmd[] = {bin, NULL}, *out;
-	Result result = {0};
-	int failed;
-
-	out = output(cmd, input, 1, &failed);
+	char *cmd[] = {bin, NULL};
+	bool failed;
+	char *out = output(cmd, input, 1, &failed);
 	if (failed) {
 		if (printf("FAIL %s: failed\n", bin) < 0)
 			die("bench: printf:");
 	} else if (strcmp(out, want) != 0) {
-		failed = 1;
+		failed = true;
 		if (printf("FAIL %s: answers differ from %s\n", bin, oracle) <
 		    0)
 			die("bench: printf:");
 	}
 	free(out);
 	if (failed)
-		return 1;
+		return true;
+	Result result = {};
 	if (measured(bin, input, runs, &result))
-		return 1;
+		return true;
 #ifdef __linux__
 	counters(bin, input, &result);
 #endif
@@ -440,19 +389,14 @@ benchmark(char *bin, const char *input, size_t runs, const char *oracle,
 		die("bench: putchar:");
 	if (record->file)
 		recordrow(record, bin, runs, &result);
-	return 0;
+	return false;
 }
 
 int
 main(int argc, char *argv[])
 {
-	char *cmd[] = {NULL, NULL}, *end, *want;
-	Record record = {0};
-	long runs;
-	size_t j;
-	int i, failed;
-
-	if (argc > 1 && !strcmp(argv[1], "-o")) {
+	Record record = {};
+	if (argc > 1 && strcmp(argv[1], "-o") == 0) {
 		if (argc < 10 || strcmp(argv[3], "-s") != 0 ||
 		    strcmp(argv[5], "-c") != 0)
 			die("bench: usage: bench [-o FILE -s STD -c CC] "
@@ -465,20 +409,22 @@ main(int argc, char *argv[])
 		die("bench: usage: bench [-o FILE -s STD -c CC] RUNS INPUT "
 		    "BIN...");
 	errno = 0;
-	runs = strtol(argv[1], &end, 10);
+	char *end;
+	long runs = strtol(argv[1], &end, 10);
 	if (errno || end == argv[1] || *end || runs < 1 || runs > 100000)
 		die("bench: runs must be 1-100000: %s", argv[1]);
-	cmd[0] = argv[3];
-	want = output(cmd, argv[2], 1, &failed);
+	char *cmd[] = {argv[3], NULL};
+	bool failed;
+	char *want = output(cmd, argv[2], 1, &failed);
 	if (failed && printf("FAIL %s: failed\n", argv[3]) < 0)
 		die("bench: printf:");
-	for (i = 3; i < argc && !failed; i++)
+	for (int i = 3; i < argc && !failed; i++)
 		failed = benchmark(argv[i], argv[2], (size_t)runs, argv[3],
 		                   want, &record);
 	free(want);
 	if (record.file && fclose(record.file) == EOF)
 		die("bench: close record:");
-	for (j = 0; j < LEN(record.text); j++)
+	for (size_t j = 0; j < LEN(record.text); j++)
 		free(record.text[j]);
 	return failed ? EXIT_FAILURE : EXIT_SUCCESS;
 }
