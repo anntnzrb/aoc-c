@@ -80,24 +80,41 @@ fuse(Instruction *code, size_t n)
 	}
 }
 
+static void
+countloop(long long reg[2])
+{
+	while (reg[0] != 1) {
+		if (ckd_add(&reg[1], reg[1], 1))
+			die("register overflow");
+		if (reg[0] % 2) {
+			if (ckd_mul(&reg[0], reg[0], 3) ||
+			    ckd_add(&reg[0], reg[0], 1) ||
+			    ckd_add(&reg[1], reg[1], 1))
+				die("register overflow");
+		}
+		reg[0] /= 2;
+	}
+}
+
 static long long
 run(const Instruction *code, size_t n, long long a)
 {
-	const Instruction *ins;
-	long long reg[2] = {a, 0}, pc = 0, step;
+	long long reg[2] = {a, 0}, pc = 0;
 
 	while (pc >= 0 && pc < (long long)n) {
-		ins = &code[pc];
-		step = 1;
+		const Instruction *ins = &code[pc];
+		long long step = 1;
 		switch (ins->op) {
 		case HALF:
 			reg[ins->reg] /= 2;
 			break;
 		case TRIPLE:
-			reg[ins->reg] *= 3;
+			if (ckd_mul(&reg[ins->reg], reg[ins->reg], 3))
+				die("register overflow");
 			break;
 		case INC:
-			reg[ins->reg]++;
+			if (ckd_add(&reg[ins->reg], reg[ins->reg], 1))
+				die("register overflow");
 			break;
 		case JUMP:
 			step = ins->offset;
@@ -111,20 +128,14 @@ run(const Instruction *code, size_t n, long long a)
 				step = ins->offset;
 			break;
 		case LOOP:
-			while (reg[0] != 1) {
-				reg[1]++;
-				if (reg[0] % 2) {
-					reg[0] = (3 * reg[0]) + 1;
-					reg[1]++;
-				}
-				reg[0] /= 2;
-			}
+			countloop(reg);
 			step = 8;
 			break;
 		default:
 			die("invalid opcode");
 		}
-		pc += step;
+		if (ckd_add(&pc, pc, step))
+			die("jump overflow");
 	}
 	return reg[1];
 }
