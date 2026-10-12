@@ -7,6 +7,7 @@
  * day 25 has no second programming part, so print only the requested code.
  */
 #include <errno.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

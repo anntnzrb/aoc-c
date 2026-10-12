@@ -11,7 +11,7 @@
  * bit's square. The naive diagonal walk used 374860560 (374860535-374860570).
  */
 #include <errno.h>
-#include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
