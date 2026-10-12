@@ -9,6 +9,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,21 +37,22 @@ effects(State *s)
 		s->poison--;
 	}
 	if (s->recharge) {
-		s->mana += 101;
+		if (ckd_add(&s->mana, s->mana, 101))
+			die("mana overflow");
 		s->recharge--;
 	}
 }
 
-static int
+static bool
 cast(State *s, size_t spell, int best)
 {
-	static const int costs[] = {53, 73, 113, 173, 229};
+	static constexpr int costs[] = {53, 73, 113, 173, 229};
 
 	if (costs[spell] > s->mana || s->spent >= best - costs[spell])
-		return 0;
+		return false;
 	if ((spell == 2 && s->shield) || (spell == 3 && s->poison) ||
 	    (spell == 4 && s->recharge))
-		return 0;
+		return false;
 	s->mana -= costs[spell];
 	s->spent += costs[spell];
 	switch (spell) {
@@ -73,7 +75,7 @@ cast(State *s, size_t spell, int best)
 	default:
 		die("invalid spell");
 	}
-	return 1;
+	return true;
 }
 
 static void

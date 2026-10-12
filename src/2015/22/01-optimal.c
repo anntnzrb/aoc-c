@@ -16,6 +16,7 @@
  */
 #include <errno.h>
 #include <limits.h>
+#include <stdckdint.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,48 +66,50 @@ effects(State *s)
 		s->v[POISON]--;
 	}
 	if (s->v[RECHARGE]) {
-		s->v[MANA] += 101;
+		if (ckd_add(&s->v[MANA], s->v[MANA], 101))
+			die("mana overflow");
 		s->v[RECHARGE]--;
 	}
 }
 
-static int
-player(State *s, int hard)
+static bool
+player(State *s, bool hard)
 {
 	if (s->v[BOSS] <= 0)
-		return 1;
+		return true;
 	s->v[HP] -= hard;
 	if (s->v[HP] <= 0)
-		return 0;
+		return false;
 	effects(s);
-	return 1;
+	return true;
 }
 
-static int
+static bool
 cast(State *s, size_t spell, int damage)
 {
-	static const int costs[] = {53, 73, 113, 173, 229};
-	static const int timers[] = {0, 0, 6, 6, 5};
-	size_t effect;
+	static constexpr int costs[] = {53, 73, 113, 173, 229};
+	static constexpr int timers[] = {0, 0, 6, 6, 5};
 
 	if (spell >= LEN(costs))
-		return 0;
-	if (s->v[MANA] < costs[spell])
-		return 0;
-	effect = spell + 1;
+		return false;
+	int cost = costs[spell];
+	if (s->v[MANA] < cost)
+		return false;
+	size_t effect = spell + 1;
 	if (spell >= 2 && s->v[effect])
-		return 0;
-	s->v[MANA] -= costs[spell];
-	s->spent += costs[spell];
+		return false;
+	s->v[MANA] -= cost;
+	if (ckd_add(&s->spent, s->spent, cost))
+		die("spending overflow");
 	if (spell < 2) {
 		s->v[BOSS] -= spell == 0 ? 4 : 2;
-		if (spell == 1)
-			s->v[HP] += 2;
+		if (spell == 1 && ckd_add(&s->v[HP], s->v[HP], 2))
+			die("hit points overflow");
 	} else {
 		s->v[effect] = timers[spell];
 	}
 	if (s->v[BOSS] <= 0)
-		return 1;
+		return true;
 	effects(s);
 	if (s->v[BOSS] > 0)
 		s->v[HP] -= MAX(1, damage - (s->v[SHIELD] ? 7 : 0));
@@ -128,17 +131,17 @@ hash(State s, size_t size)
 static void
 grow(Search *q)
 {
-	State *old;
-	size_t i, slot, size;
-
-	old = q->table;
-	size = q->size;
-	q->size = size ? size * 2 : 1024;
+	State *old = q->table;
+	size_t size = q->size;
+	if (ckd_mul(&q->size, size, 2))
+		die("table capacity overflow");
+	if (!size)
+		q->size = 1024;
 	q->table = ecalloc(q->size, sizeof(*q->table));
-	for (i = 0; i < size; i++) {
+	for (size_t i = 0; i < size; i++) {
 		if (!old[i].v[HP])
 			continue;
-		slot = hash(old[i], q->size);
+		size_t slot = hash(old[i], q->size);
 		while (q->table[slot].v[HP])
 			slot = (slot + 1) & (q->size - 1);
 		q->table[slot] = old[i];
@@ -146,48 +149,51 @@ grow(Search *q)
 	free(old);
 }
 
-static int
+static bool
 remember(Search *q, State s)
 {
-	size_t slot;
-
 	if (!q->size || q->used >= q->size / 2)
 		grow(q);
-	slot = hash(s, q->size);
+	size_t slot = hash(s, q->size);
 	while (q->table[slot].v[HP]) {
-		if (!memcmp(q->table[slot].v, s.v, sizeof(s.v))) {
+		if (memcmp(q->table[slot].v, s.v, sizeof(s.v)) == 0) {
 			if (q->table[slot].spent <= s.spent)
-				return 0;
+				return false;
 			q->table[slot].spent = s.spent;
-			return 1;
+			return true;
 		}
 		slot = (slot + 1) & (q->size - 1);
 	}
 	q->table[slot] = s;
 	q->used++;
-	return 1;
+	return true;
 }
 
 static int
 estimate(State s)
 {
-	int remaining;
-
-	remaining = MAX(0, s.v[BOSS] - (3 * s.v[POISON]));
-	return (int)(((long long)remaining * 173 + 17) / 18);
+	int remaining = MAX(0, s.v[BOSS] - (3 * s.v[POISON]));
+	long long cost = ((long long)remaining * 173 + 17) / 18;
+	if (cost > INT_MAX)
+		die("estimate overflow");
+	return (int)cost;
 }
 
 static void
 push(Search *q, State s)
 {
-	size_t bucket;
-
 	if (q->count == q->capacity) {
-		q->capacity = q->capacity ? q->capacity * 2 : 1024;
+		if (ckd_mul(&q->capacity, q->capacity, 2))
+			die("node capacity overflow");
+		if (!q->capacity)
+			q->capacity = 1024;
 		q->nodes =
 		    ereallocarray(q->nodes, q->capacity, sizeof(*q->nodes));
 	}
-	bucket = (size_t)(s.spent + estimate(s)) % NBUCKETS;
+	int priority;
+	if (ckd_add(&priority, s.spent, estimate(s)))
+		die("priority overflow");
+	size_t bucket = (size_t)priority % NBUCKETS;
 	q->nodes[q->count] = (Node){s, q->heads[bucket]};
 	q->heads[bucket] = ++q->count;
 	q->live++;
