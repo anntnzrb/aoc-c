@@ -202,7 +202,7 @@ opportunities without expanding worker ownership.
 
 </agent_workflow>
 
-<repository_guidelines language="C" standard="C99" platform_api="POSIX.1-2008">
+<repository_guidelines language="C" standard="C23" platform_api="POSIX.1-2008">
 
 ## Critical repository rules
 
@@ -212,7 +212,7 @@ opportunities without expanding worker ownership.
 
 ## Project
 
-Advent of Code, every year from 2015, in C99 + POSIX.1-2008, [suckless style](https://suckless.org/coding_style/). One repo per language. The repo is learning material: it records how an agent reasons from a puzzle to a naive answer, then to an optimal one. The toolchain comes from a Nix flake devshell (`nix develop`), and every task runs through `just`.
+Advent of Code, every year from 2015, in C23 + POSIX.1-2008, [suckless style](https://suckless.org/coding_style/). One repo per language. The repo is learning material: it records how an agent reasons from a puzzle to a naive answer, then to an optimal one. The toolchain comes from a Nix flake devshell (`nix develop`), and every task runs through `just`.
 
 **Principles** (the Strictness standard, applied to C)
 - Tools are C programs in `tools/`; Nix, the `justfile` and dotfiles are the exempt files.
@@ -261,7 +261,10 @@ just check            # lint + gcc + test + release builds: the gate
 
 - `flake.lock` pins tool versions; `justfile` and `.clang-tidy` define the exact enabled checks and documented suppressions. Use the locked devshell, not newer tools selected ad hoc.
 - Checks: clang-format, nixfmt and task-runner format drift; clang-tidy check families from `.clang-tidy`; clang analyzer default, security, unix, nullability, valist and portability checkers; cppcheck exhaustive, all and inconclusive checks; GCC warnings and `-fanalyzer`; sanitizer tests; optimized builds. Exact versions come from `flake.lock`; flags and exclusions come from `justfile` and `.clang-tidy`.
-- `justfile` is the single source of flags. clang 21 is primary (`-Weverything -Werror`, four documented `-Wno-*`). GCC 16 is a second gate on Linux. The devshell's `cc` is GCC on Linux, so recipes use `$CC` (`clang`), never `cc`.
+- `justfile` is the single source of flags. clang 21 is primary (`-std=c23 -Weverything -Werror`, eight common `-Wno-*` flags listed below). GCC 16 is a second gate on Linux. The devshell's `cc` is GCC on Linux, so recipes use `$CC` (`clang`), never `cc`.
+- Common warning suppressions: `-Wno-padded` permits normal ABI struct padding; `-Wno-unsafe-buffer-usage` permits C arrays and pointers with explicit bounds; `-Wno-pre-c11-compat` and `-Wno-pre-c23-compat` omit compatibility with older C standards; `-Wno-disabled-macro-expansion` handles glibc's self-referential C23 const-safe string macros; `-Wno-implicit-void-ptr-cast` omits C++ compatibility advice to cast allocation results; `-Wno-declaration-after-statement` permits declarations at first use instead of C89 style; `-Wno-c++98-compat` handles clang diagnosing C23 `constexpr` in a C++ warning group.
+- Two additional warning suppressions apply only to specific checks: `-Wno-used-but-marked-unused` in Linux release builds handles glibc's fortified stdio wrappers; `-Wno-unused-command-line-argument` during static analysis handles the Nix compiler wrapper's injected linker flags. GCC has no warning suppressions.
+- `include/aoc.h` supplies an analyzer-only `va_start` shim: clang 21's ValistChecker models `__builtin_va_start` but not C23's `__builtin_c23_va_start`. Runtime builds keep the standard macro. Remove the shim when the pinned analyzer supports the C23 builtin.
 - Debug builds run ASan (Linux only: it hangs on macOS 27), UBSan and integer sanitizers with `-fno-sanitize-recover=all`; LeakSanitizer means tools free what they allocate. MemorySanitizer crashes with nixpkgs glibc and is not used.
 - `flake.nix` disables the cc wrapper's fortify hardening, which would otherwise inject `_FORTIFY_SOURCE` into debug builds.
 - Platform differences use just's `[linux]`/`[macos]` attributes, never `os()` branches.
@@ -269,7 +272,11 @@ just check            # lint + gcc + test + release builds: the gate
 
 ## Code
 
-suckless, enforced by the compilers, clang-format, clang-tidy and cppcheck: tabs, 79 columns, `/* */` comments, return type on its own line, variables at the top of the block, file-local functions `static` with prototypes at the top in definition order, `case` not indented, `char *p`, `int` not `bool`, `CamelCase` typedefs, assignment in conditions is fine, never cast `malloc`. `die(fmt)` appends `strerror` when `fmt` ends in `:`, and the `e*` allocators never return NULL. Check every stdio return or cast it to `(void)` with a reason.
+suckless, enforced by the compilers, clang-format, clang-tidy and cppcheck: tabs, 79 columns, `/* */` comments, return type on its own line, `case` not indented, `char *p`, `CamelCase` typedefs, assignment in conditions is fine, never cast `malloc`. Declare variables at first use in the tightest scope, including `for (int i = 0; ...)`. Define file-local `static` functions before use without prototypes, with `main` last. `die(fmt)` appends `strerror` when `fmt` ends in `:`, and the `e*` allocators never return NULL. Check every stdio return or cast it to `(void)` with a reason.
+
+Use `bool` for truth values, typed `constexpr` constants instead of constant macros, and `= {}` for zero initialization. Use standard `[[noreturn]]`, `[[nodiscard]]` and `[[maybe_unused]]` attributes where needed; `[[gnu::format(printf, 1, 2)]]` preserves format checking. Use `<stdckdint.h>` checked arithmetic where hostile input can overflow, and `<stdbit.h>` operations instead of bit loops when applicable. Use `typeof` only when it removes real duplication.
+
+Keep `NULL`; never use `nullptr`, to keep pointer notation consistent with POSIX APIs. Never use `unreachable()`, because an unexpected path must not become undefined behavior. Never use `#embed`, because stdin filters must not compile personal input into binaries. Never use `auto`, because declarations must show their types.
 
 Under `-Wwrite-strings` + `-Wcast-qual`, an `argv` for spawning is built from local `char x[] = "..."` arrays. Prefer plain APIs over glibc structs whose members are macros (`signal`, not `sigaction`).
 
@@ -342,6 +349,9 @@ input scope before applying them elsewhere.
 ## C and sanitizers
 
 - `-fsanitize=integer` rejects shifts that discard set bits, even on unsigned values: mask before rotating a hash (2015/03).
+- Compiler support for C23 does not imply analyzer or linter support: clang 21's ValistChecker does not model the C23 variadic builtin, and `readability-implicit-bool-conversion` models C++ boolean conversions rather than C's integer operators.
+- Rebuild cached `bin/tools` binaries when flags change: the bootstrap checks source timestamps, not compiler flags. Touch a shared tool header before the full gate to force rebuilding without deleting ignored caches.
+- Removing an explicit `-W` flag does not disable that warning under `-Weverything`; use a documented `-Wno-*` only when the diagnostic is inapplicable.
 
 ## Benchmarking and optimization
 
