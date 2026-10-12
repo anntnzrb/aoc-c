@@ -37,18 +37,18 @@ solve(size_t target, int limited)
 int
 main(void)
 {
-	char *in, *end;
-	size_t len, target, part1 = 0, part2 = 0;
+	size_t len, part1 = 0, part2 = 0;
+	char *in = slurp(stdin, &len);
 
-	in = slurp(stdin, &len);
 	if (len) {
 		errno = 0;
-		target = strtoul(in, &end, 10);
+		char *end;
+		size_t target = strtoul(in, &end, 10);
 		if (errno || end == in || !target || *in == '-' ||
 		    (*end && *end != '\n'))
 			die("invalid present target");
-		part1 = solve(target, 0);
-		part2 = solve(target, 1);
+		part1 = solve(target, false);
+		part2 = solve(target, true);
 	}
 	if (printf("%zu\n%zu\n", part1, part2) < 0)
 		die("printf:");

@@ -60,56 +60,40 @@ linear(size_t target)
 }
 
 static size_t
-streetbound(size_t target, int limited)
+solve(size_t target, bool limited)
 {
-	size_t base = 2520, sum = base, divisor, multiple, bound;
-
-	/* 2520 is lcm(1..10); its divisors remain divisors after scaling. */
-	for (divisor = 1; divisor < base; divisor++)
-		if (base % divisor == 0 && (!limited || base / divisor <= 50))
-			sum += divisor;
-	multiple = (target / sum) + (target % sum != 0);
-	bound = multiple <= target / base ? multiple * base : target;
-	return bound;
-}
-
-static size_t
-solve(size_t target, int limited)
-{
-	size_t *presents, rate, bound, elf, house, visit, answer;
-
-	rate = limited ? 11 : 10;
+	size_t rate = limited ? 11 : 10;
 	target = (target / rate) + (target % rate != 0);
-	bound = streetbound(target, limited);
-	presents = ecalloc(bound + 1, sizeof(*presents));
+	size_t bound = streetbound(target, limited);
+	size_t *presents = ecalloc(bound + 1, sizeof(*presents));
+	size_t elf;
 	for (elf = 1; elf <= bound; elf++) {
-		for (house = elf, visit = 1;
+		for (size_t house = elf, visit = 1;
 		     house <= bound && (!limited || visit <= 50);
 		     house += elf, visit++)
 			presents[house] += elf;
 		if (presents[elf] >= target)
 			break;
 	}
-	answer = elf;
 	free(presents);
-	return answer;
+	return elf;
 }
 
 int
 main(void)
 {
-	char *in, *end;
-	size_t len, target, part1 = 0, part2 = 0;
+	size_t len, part1 = 0, part2 = 0;
+	char *in = slurp(stdin, &len);
 
-	in = slurp(stdin, &len);
 	if (len) {
 		errno = 0;
-		target = strtoul(in, &end, 10);
+		char *end;
+		size_t target = strtoul(in, &end, 10);
 		if (errno || end == in || !target || *in == '-' ||
 		    (*end && *end != '\n'))
 			die("invalid present target");
 		part1 = linear(target);
-		part2 = solve(target, 1);
+		part2 = solve(target, true);
 	}
 	if (printf("%zu\n%zu\n", part1, part2) < 0)
 		die("printf:");
