@@ -10,30 +10,21 @@
  * fixed-buffer streaming 1225025 work vs fused getline 1103867 work;
  * streaming uses constant memory but loses on instructions
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "aoc.h"
 
-static void countline(const char *s, size_t len, size_t *first, size_t base,
-                      long long count[2]);
-
 static void
 countline(const char *s, size_t len, size_t *first, size_t base,
           long long count[2])
 {
-	size_t i, key, pos, vowels;
-	unsigned char c, prev;
-	int twice, forbidden, pair, gap;
-
-	vowels = 0;
-	twice = 0;
-	forbidden = 0;
-	pair = 0;
-	gap = 0;
-	prev = 0;
-	for (i = 0; i < len; i++) {
-		c = (unsigned char)s[i];
+	size_t vowels = 0;
+	bool twice = false, forbidden = false, pair = false, gap = false;
+	unsigned char prev = 0;
+	for (size_t i = 0; i < len; i++) {
+		unsigned char c = (unsigned char)s[i];
 		if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u')
 			vowels++;
 		if (i) {
@@ -54,28 +45,28 @@ countline(const char *s, size_t len, size_t *first, size_t base,
 			gap |= c == (unsigned char)s[i - 2];
 		prev = c;
 	}
-	count[0] += vowels >= 3 && twice && !forbidden;
-	count[1] += pair && gap;
+	if (ckd_add(&count[0], count[0], vowels >= 3 && twice && !forbidden) ||
+	    ckd_add(&count[1], count[1], pair && gap))
+		die("answer overflow");
 }
 
 int
 main(void)
 {
-	char *line;
 	static size_t first[65536];
-	size_t cap, len, base;
+	char *line = NULL;
+	size_t cap = 0, base = 0;
 	ssize_t n;
-	long long count[2] = {0, 0};
-
-	line = NULL;
-	cap = 0;
-	base = 0;
+	long long count[2] = {};
 	while ((n = getline(&line, &cap, stdin)) >= 0) {
-		len = (size_t)n;
+		size_t len = (size_t)n;
 		if (len && line[len - 1] == '\n')
 			len--;
+		size_t next;
+		if (ckd_add(&next, len, 1) || ckd_add(&next, base, next))
+			die("position overflow");
 		countline(line, len, first, base, count);
-		base += len + 1;
+		base = next;
 	}
 	if (ferror(stdin))
 		die("getline:");
