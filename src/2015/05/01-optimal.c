@@ -42,8 +42,8 @@ countline(const char *s, size_t len, size_t *first, size_t base,
 			             (prev == 'c' && c == 'd') ||
 			             (prev == 'p' && c == 'q') ||
 			             (prev == 'x' && c == 'y');
-			key = (((size_t)prev << 8) | c) & 65535U;
-			pos = base + i;
+			size_t key = (((size_t)prev << 8) | c) & 65535U;
+			size_t pos = base + i;
 			/* Older lines have positions at or below base. */
 			if (first[key] <= base)
 				first[key] = pos;

@@ -7,69 +7,57 @@
  * N input bytes, L longest line
  * trade: separate scans express each rule directly; getline buffers one line
  */
+#include <stdckdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "aoc.h"
 
-static int nice(const char *s);
-static int nice2(const char *s);
-
-static int
+static bool
 nice(const char *s)
 {
-	const char *p;
-	size_t vowels;
-	int twice;
-
-	vowels = 0;
-	for (p = s; *p; p++)
+	size_t vowels = 0;
+	for (const char *p = s; *p; p++)
 		if (strchr("aeiou", *p))
 			vowels++;
-	twice = 0;
-	for (p = s; *p; p++)
+	bool twice = false;
+	for (const char *p = s; *p; p++)
 		if (*p == p[1])
-			twice = 1;
+			twice = true;
 	return vowels >= 3 && twice && !strstr(s, "ab") && !strstr(s, "cd") &&
 	       !strstr(s, "pq") && !strstr(s, "xy");
 }
 
-static int
+static bool
 nice2(const char *s)
 {
-	size_t i, j, len;
-	int pair, gap;
-
-	len = strlen(s);
-	pair = 0;
-	for (i = 0; i + 1 < len && !pair; i++)
-		for (j = i + 2; j + 1 < len; j++)
+	size_t len = strlen(s);
+	bool pair = false;
+	for (size_t i = 0; i + 1 < len && !pair; i++)
+		for (size_t j = i + 2; j + 1 < len; j++)
 			if (s[i] == s[j] && s[i + 1] == s[j + 1]) {
-				pair = 1;
+				pair = true;
 				break;
 			}
-	gap = 0;
-	for (i = 0; i + 2 < len; i++)
+	bool gap = false;
+	for (size_t i = 0; i + 2 < len; i++)
 		if (s[i] == s[i + 2])
-			gap = 1;
+			gap = true;
 	return pair && gap;
 }
 
 int
 main(void)
 {
-	char *line;
-	size_t cap;
-	long long count, count2;
-
-	line = NULL;
-	cap = 0;
-	count = 0;
-	count2 = 0;
+	char *line = NULL;
+	size_t cap = 0;
+	long long count = 0, count2 = 0;
 	while (getline(&line, &cap, stdin) >= 0) {
-		count += nice(line);
-		count2 += nice2(line);
+		int one = nice(line), two = nice2(line);
+		if (ckd_add(&count, count, one) ||
+		    ckd_add(&count2, count2, two))
+			die("answer overflow");
 	}
 	if (ferror(stdin))
 		die("getline:");
