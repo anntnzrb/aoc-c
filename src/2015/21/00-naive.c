@@ -72,14 +72,14 @@ wins(int hp, int damage, int armor, int attack, int defense)
 		attack = 1;
 	if (damage < 1)
 		damage = 1;
-	for (;;) {
+	/* Stats <= INT_MAX and shop damage <= 14 keep subtraction in int. */
+	while (hp > attack) {
 		hp -= attack;
-		if (hp <= 0)
-			return true;
 		player -= damage;
 		if (player <= 0)
 			return false;
 	}
+	return true;
 }
 
 int
